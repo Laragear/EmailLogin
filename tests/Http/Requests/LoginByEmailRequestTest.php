@@ -141,7 +141,11 @@ class LoginByEmailRequestTest extends TestCase
         $request = LoginByEmailRequest::create('https//localhost/login', 'GET', ['id' => 1, 'guard' => 'web']);
         $request->setContainer($this->app);
         $request->setRedirector($this->app->make('redirect'));
-        $request->setSession(new SymfonySessionDecorator($this->app->make('session.store')));
+        $request->setSession(new class($this->app->make('session.store')) extends SymfonySessionDecorator {
+            public function regenerate($value) {
+                return $this->store->regenerate($value);
+            }
+        });
 
         $request->validateResolved();
 
@@ -165,7 +169,11 @@ class LoginByEmailRequestTest extends TestCase
         ]);
         $request->setContainer($this->app);
         $request->setRedirector($this->app->make('redirect'));
-        $request->setSession(new SymfonySessionDecorator($this->app->make('session.store')));
+        $request->setSession(new class($this->app->make('session.store')) extends SymfonySessionDecorator {
+            public function regenerate($value) {
+                return $this->store->regenerate($value);
+            }
+        });
 
         $request->validateResolved();
     }
@@ -187,7 +195,11 @@ class LoginByEmailRequestTest extends TestCase
         ]);
         $request->setContainer($this->app);
         $request->setRedirector($this->app->make('redirect'));
-        $request->setSession(new SymfonySessionDecorator($this->app->make('session.store')));
+        $request->setSession(new class($this->app->make('session.store')) extends SymfonySessionDecorator {
+            public function regenerate($value) {
+                return $this->store->regenerate($value);
+            }
+        });
 
         $request->validateResolved();
 
@@ -208,7 +220,11 @@ class LoginByEmailRequestTest extends TestCase
         $request = LoginByEmailRequest::create('https//localhost/login', 'GET', ['id' => 1, 'guard' => 'web']);
         $request->setContainer($this->app);
         $request->setRedirector($this->app->make('redirect'));
-        $request->setSession(new SymfonySessionDecorator($session));
+        $request->setSession(new class($session) extends SymfonySessionDecorator {
+            public function regenerate($value) {
+                return $this->store->regenerate($value);
+            }
+        });
 
         $request->validateResolved();
 
