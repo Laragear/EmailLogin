@@ -199,6 +199,9 @@ class LoginByEmailRequestTest extends TestCase
             public function regenerate($value) {
                 return $this->store->regenerate($value);
             }
+            public function put($key, $value = null) {
+                $this->store->put($key, $value);
+            }
         });
 
         $request->validateResolved();
