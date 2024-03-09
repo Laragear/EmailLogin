@@ -29,7 +29,8 @@
         "illuminate/config": "10.*|11.*",
         "illuminate/http": "10.*|11.*",
         "illuminate/auth": "10.*|11.*",
-        "illuminate/mail": "10.*|11.*"
+        "illuminate/mail": "10.*|11.*",
+        "laragear/token-action": "^1.2.1"
     },
     "require-dev": {
         "laragear/meta-testing": "2.*",

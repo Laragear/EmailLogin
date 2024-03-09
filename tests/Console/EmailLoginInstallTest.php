@@ -20,7 +20,7 @@ class EmailLoginInstallTest extends TestCase
 
             $files->delete($this->app->configPath('email-login.php'));
             $files->delete($this->app->path('Http/Controllers/Auth/EmailLoginController.php'));
-            $files->deleteDirectory($this->app->resourcePath('views/vendor/email-login'));
+            $files->deleteDirectory($this->app->resourcePath('views/vendor/laragear'));
         };
 
         $this->afterApplicationCreated($delete);
@@ -35,8 +35,8 @@ class EmailLoginInstallTest extends TestCase
         $this->artisan('email-login:install')->run();
 
         static::assertFileExists($this->app->configPath('email-login.php'));
-        static::assertFileExists($this->app->resourcePath('views/vendor/email-login/web/login.blade.php'));
-        static::assertFileExists($this->app->resourcePath('views/vendor/email-login/mail/login.blade.php'));
+        static::assertFileExists($this->app->resourcePath('views/vendor/laragear/email-login/web/login.blade.php'));
+        static::assertFileExists($this->app->resourcePath('views/vendor/laragear/email-login/mail/login.blade.php'));
         static::assertFileExists($this->app->path('Http/Controllers/Auth/EmailLoginController.php'));
     }
 }

@@ -12,35 +12,34 @@ class ServiceProviderTest extends TestCase
 {
     use InteractsWithServiceProvider;
 
-    #[Test]
-    public function merges_config(): void
+    public function test_merges_config(): void
     {
         $this->assertConfigMerged(EmailLoginServiceProvider::CONFIG);
     }
 
-    #[Test]
-    public function registers_views(): void
+    public function test_registers_views(): void
     {
-        $this->assertHasViews(EmailLoginServiceProvider::VIEWS, 'email-login');
+        $this->assertHasViews(EmailLoginServiceProvider::VIEWS, 'laragear');
     }
 
-    #[Test]
-    public function bounds_email_login_broker(): void
+    public function test_bounds_email_login_broker(): void
     {
-        $this->assertHasSingletons(EmailLoginBroker::class);
+        static::assertThat(
+            $this->app->isShared(EmailLoginBroker::class),
+            static::isFalse(),
+            "The 'Laragear\EmailLogin\EmailLoginBroker' is registered as a shared instance in the Service Container.",
+        );
     }
 
-    #[Test]
-    public function registers_command(): void
+    public function test_registers_command(): void
     {
         static::assertArrayHasKey('email-login:install', $this->app[Kernel::class]->all());
     }
 
-    #[Test]
-    public function publishes_files(): void
+    public function test_publishes_files(): void
     {
         $this->assertPublishes($this->app->configPath('email-login.php'), 'config');
-        $this->assertPublishes($this->app->resourcePath('views/vendor/email-login'), 'views');
+        $this->assertPublishes($this->app->resourcePath('views/vendor/laragear'), 'views');
         $this->assertPublishes($this->app->path('Http/Controllers/Auth/EmailLoginController.php'), 'controllers');
     }
 }

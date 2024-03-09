@@ -8,39 +8,33 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Traits\Tappable;
+use function config;
+use function url;
 
 class LoginEmail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
     /**
-     * Create a new notification instance.
+     * Create a new mailable instance.
      */
-    final public function __construct(public Authenticatable $user, public string $url, string $view)
+    public function __construct(public Authenticatable $user, public string $url, public Carbon $expiration)
     {
-        $this->view = $view;
-
-        if ($this->user instanceof Model) {
-            $this->user = $this->user->withoutRelations();
-        }
-    }
-
-    /**
-     * Build the message.
-     *
-     * @codeCoverageIgnore
-     * @return $this
-     */
-    public function build(): static
-    {
-        return $this->markdown($this->view);
+        //
     }
 
     /**
      * Create a new Login Mail instance.
      */
-    public static function make(Authenticatable $user, string $url, string $view): static
+    public static function make(Authenticatable $user, string $url, string $markdown, \DateTimeInterface $expiration): static
     {
-        return new static($user, $url, $view);
+        if ($user instanceof Model) {
+            $user = $user->withoutRelations();
+        }
+
+        // @phpstan-ignore-next-line
+        return (new static($user, $url, Carbon::parse($expiration)))->to($user)->markdown($markdown);
     }
 }

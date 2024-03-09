@@ -13,23 +13,7 @@ return [
     |
     */
 
-    'defaults' => [
-        'guard' => null,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Guards configuration
-    |--------------------------------------------------------------------------
-    |
-    | Here is a simple guard configuration: where the email address is on the
-    | request and the user model / object. Usually, all users have it on the
-    | the "email" key attribute but you may change it in a per-guard basis.
-    |
-    */
-    'guards' => [
-        'web' => 'email'
-    ],
+    'guard' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -44,7 +28,23 @@ return [
 
     'route' => [
         'name' => 'auth.email.login',
-        'view' => 'email-login::web.login',
+        'view' => 'laragear::email-login.web.login',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Throttle
+    |--------------------------------------------------------------------------
+    |
+    | By default, there is no throttling to send the email login. Here you can
+    | add a default throttling for all outgoing email logins. The "prefix" is
+    | appended to the cache prefix, becoming "[email-login|throttle|{key}]".
+    |
+    */
+
+    'throttle' => [
+        'store' => null,
+        'prefix' => 'throttle'
     ],
 
     /*
@@ -58,7 +58,7 @@ return [
     |
     */
 
-    'minutes' => 5,
+    'expiration' => 5,
 
     /*
     |--------------------------------------------------------------------------
@@ -91,6 +91,6 @@ return [
         'mailer' => null,
         'connection' => null,
         'queue' => null,
-        'view' => 'email-login::mail.login',
+        'markdown' => 'laragear::email-login.mail.login',
     ],
 ];

@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers\Auth;
 
-use Illuminate\Config\Repository as ConfigContract;
 use Illuminate\Contracts\View\Factory as ViewFactoryContract;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controller;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
+use function back;
+use function config;
 use function __;
-use function session;
 
 class EmailLoginController extends Controller
 {
@@ -19,17 +19,24 @@ class EmailLoginController extends Controller
      */
     public function send(EmailLoginRequest $request): RedirectResponse
     {
-        return tap($request->send(), fn () => session()->flash(
-            'login', __('The login email has been sent to').' '.$request->input('email')
-        ));
+        $request->withThrottle(30, config('email-login.throttle.store'), config('email-login.throttle.prefix'))->send();
+
+        $request->session()->flash(
+            'sent', __('The login email has been sent to :email.', ['email' => $request->email])
+        );
+
+        return back();
     }
 
     /**
      * Returns the view for the login attempt.
      */
-    public function show(ConfigContract $config, ViewFactoryContract $view): View
+    public function show(LoginByEmailRequest $request, ViewFactoryContract $view): View
     {
-        return $view->make($config->get('email-login.route.view'));
+        return $view->make(config('email-login.route.view'), [
+            'token' => $request->input('token'),
+            'store' => $request->input('store')
+        ]);
     }
 
     /**
@@ -40,6 +47,6 @@ class EmailLoginController extends Controller
      */
     public function login(LoginByEmailRequest $request): RedirectResponse
     {
-        return $request->redirect()->intended();
+        return $request->toIntended();
     }
 }

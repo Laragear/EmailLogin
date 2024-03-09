@@ -2,21 +2,17 @@
 
 namespace Tests\Http\Controllers\LoginMail;
 
-use Illuminate\Auth\Events\Failed;
 use Illuminate\Foundation\Auth\User;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\URL;
 use Laragear\EmailLogin\EmailLoginBroker;
+use Laragear\EmailLogin\EmailLoginIntent;
 use Laragear\EmailLogin\Http\Routes;
-use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
-use function now;
 
 class EmailLoginControllerTest extends TestCase
 {
     public function defineRoutes($router): void
     {
-        Routes::register();
+        $router->middleware('web')->group(fn() => Routes::register());
     }
 
     protected function defineDatabaseMigrations(): void
@@ -30,119 +26,97 @@ class EmailLoginControllerTest extends TestCase
         ]);
     }
 
-    #[Test]
-    public function send_mail(): void
+    public function test_send_mail(): void
     {
+        $this->mock(EmailLoginBroker::class)->expects('create')->once();
+
         $this->post('/auth/email/send', [
             'email' => 'foo@bar.com',
             'remember' => 'on'
         ])
             ->assertSessionDoesntHaveErrors()
-            ->assertSessionHas('login', 'The login email has been sent to foo@bar.com')
+            ->assertSessionHas('sent', 'The login email has been sent to foo@bar.com.')
             ->assertRedirect('http://localhost');
     }
 
-    #[Test]
-    public function cant_send_mail_if_already_authenticated(): void
+    public function test_cant_send_mail_if_already_authenticated(): void
     {
+        $this->mock(EmailLoginBroker::class)->expects('create')->never();
+
         $this->be(User::find(1));
 
-        $this->post('auth/email/send', [
+        $this->post('/auth/email/send', [
             'email' => 'foo@bar.com',
             'remember' => 'on'
         ])->assertRedirect();
     }
 
-    #[Test]
-    public function shows_login_form(): void
+    public function test_shows_login_form(): void
     {
-        $url = URL::temporarySignedRoute('auth.email.login', 60, ['id' => 1, 'guard' => 'web', 'remember' => 0]);
+        $broker = $this->mock(EmailLoginBroker::class);
+        $broker->expects('store')->with('array')->andReturnSelf();
+        $broker->expects('get')->with(static::TOKEN)->andReturn(new EmailLoginIntent('web', 'test-id', true, '/', []));
 
-        $this->get($url)
+        $this->get('/auth/email/login?token='.static::TOKEN.'&store=array')
             ->assertOk()
-            ->assertViewIs('email-login::web.login');
+            ->assertViewIs('laragear::email-login.web.login')
+            ->assertViewHas('token', static::TOKEN)
+            ->assertViewHas('store', 'array');
+
+        $this->assertGuest();
     }
 
-    #[Test]
-    public function cant_show_login_form_if_authenticated(): void
+    public function test_cant_show_login_form_if_authenticated(): void
     {
         $this->be(User::find(1));
 
-        $this->get(URL::temporarySignedRoute('auth.email.login', 60, ['id' => 1, 'guard' => 'web', 'remember' => 0]))
+        $this->get('/auth/email/login?token='.static::TOKEN.'&store=array')
+            ->assertSessionDoesntHaveErrors()
             ->assertRedirect();
     }
 
-    #[Test]
-    public function logins_from_mail_request_form(): void
+    public function test_logins_from_mail_request_form(): void
     {
-        $this->mock(EmailLoginBroker::class)->expects('missing')->andReturnFalse();
+        $broker = $this->mock(EmailLoginBroker::class);
+        $broker->expects('store')->with('array')->andReturnSelf();
+        $broker->expects('pull')->with(static::TOKEN)->andReturn(new EmailLoginIntent('web', '1', true, '/', []));
 
-        $url = URL::temporarySignedRoute('auth.email.login', 60, ['id' => 1, 'guard' => 'web', 'remember' => 0]);
-
-        $this->post($url)->assertRedirect('http://localhost');
+        $this->post('/auth/email/login?token='.static::TOKEN.'&store=array')
+            ->assertRedirect('http://localhost');
 
         $this->assertAuthenticatedAs(User::find(1));
     }
 
-    #[Test]
-    public function forbidden_login_from_mail_request_form_if_not_signed_properly(): void
+    public function test_validation_error_if_store_invalid(): void
     {
-        $url = URL::route('auth.email.login', [
-            'id' => 1,
-            'guard' => 'web',
-            'remember' => 0,
-            'signature' => 'invalid',
-            'expires' => now()->addMinute()->getTimestamp()
-        ]);
+        $broker = $this->mock(EmailLoginBroker::class);
+        $broker->expects('store')->with('array')->andReturnSelf();
+        $broker->expects('pull')->with(static::TOKEN)->andReturnNull();
 
-        $this->post($url)->assertForbidden();
+        $this->post('/auth/email/login?token='.static::TOKEN.'&store=array')
+            ->assertSessionHasErrors([
+                'token' => 'The token is invalid or has expired.'
+            ]);
     }
 
-    #[Test]
-    public function forbidden_login_from_mail_request_form_if_expired(): void
+    public function test_validation_error_if_token_invalid(): void
     {
-        $url = URL::temporarySignedRoute('auth.email.login', 60, ['id' => 1, 'guard' => 'web', 'remember' => 0]);
+        $broker = $this->mock(EmailLoginBroker::class);
+        $broker->expects('store')->with('array')->andReturnSelf();
+        $broker->expects('pull')->with(static::TOKEN)->andReturnNull();
 
-        $this->travelTo(now()->addMinute()->addSecond());
-
-        $this->post($url)->assertForbidden();
+        $this->post('/auth/email/login?token='.static::TOKEN.'&store=array')
+            ->assertSessionHasErrors([
+                'token' => 'The token is invalid or has expired.'
+            ]);
     }
 
-    #[Test]
-    public function validation_error_if_guard_not_contained_in_app(): void
-    {
-        $url = URL::temporarySignedRoute('auth.email.login', 60, ['id' => 1, 'guard' => 'invalid', 'remember' => 0]);
-
-        $this->post($url)->assertSessionHasErrors();
-    }
-
-    #[Test]
-    public function aborts_login_if_user_doesnt_exists(): void
-    {
-        $this->mock(EmailLoginBroker::class)->expects('missing')->andReturnFalse();
-
-        $event = Event::fake();
-
-        $url = URL::temporarySignedRoute('auth.email.login', 60, ['id' => 2, 'guard' => 'web', 'remember' => 0]);
-
-        $this->post($url)->assertSessionHasErrors();
-
-        $event->assertDispatched(Failed::class, static function (Failed $event): bool {
-            static::assertSame('web', $event->guard);
-            static::assertSame(['id' => '2'], $event->credentials);
-            static::assertNull($event->user);
-
-            return true;
-        });
-    }
-
-    #[Test]
-    public function cant_login_from_mail_request_form_if_already_authenticated(): void
+    public function test_cant_login_from_mail_request_form_if_already_authenticated(): void
     {
         $this->be(User::find(1));
 
-        $url = URL::temporarySignedRoute('auth.email.login', 60, ['id' => 1, 'guard' => 'web', 'remember' => 0]);
-
-        $this->post($url)->assertRedirect();
+        $this->post('/auth/email/login?token='.static::TOKEN.'&store=array')
+            ->assertSessionDoesntHaveErrors()
+            ->assertRedirect();
     }
 }

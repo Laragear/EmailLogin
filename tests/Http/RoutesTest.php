@@ -2,21 +2,17 @@
 
 namespace Tests\Http;
 
-use App\Http\Controllers\Auth\EmailLogin\EmailLoginController;
 use Illuminate\Http\Request;
+use Illuminate\Routing\RouteRegistrar;
 use Laragear\EmailLogin\Http\Routes;
-use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 use function tap;
 
 class RoutesTest extends TestCase
 {
-    #[Test]
-    public function register_routes(): void
+    public function test_register_routes(): void
     {
-        $route = Routes::register();
-
-        static::assertSame('auth.email.send', $route->getName());
+        static::assertInstanceOf(RouteRegistrar::class, Routes::register());
 
         /** @var \Illuminate\Routing\RouteCollection $routes */
         $routes = tap($this->app->make('router')->getRoutes())->refreshNameLookups();
@@ -28,16 +24,11 @@ class RoutesTest extends TestCase
         static::assertSame('auth/email/login', $routes->match(Request::create('/auth/email/login'))->uri());
         static::assertSame('auth/email/login', $routes->match(Request::create('/auth/email/login', 'POST'))->uri());
 
-        static::assertSame(
-            ['guest', 'web', 'signed'], $routes->match(Request::create('/auth/email/login'))->middleware()
-        );
-        static::assertSame(
-            ['guest', 'web', 'signed'], $routes->match(Request::create('/auth/email/login', 'POST'))->middleware()
-        );
+        static::assertSame(['guest'], $routes->match(Request::create('/auth/email/login'))->middleware());
+        static::assertSame(['guest'], $routes->match(Request::create('/auth/email/login', 'POST'))->middleware());
     }
 
-    #[Test]
-    public function uses_custom_routes(): void
+    public function test_uses_custom_routes(): void
     {
         Routes::register(
             '/foo/send',
@@ -56,8 +47,7 @@ class RoutesTest extends TestCase
         static::assertSame('bar/login', $routes->match(Request::create('/bar/login', 'POST'))->uri());
     }
 
-    #[Test]
-    public function uses_custom_controller(): void
+    public function test_uses_custom_controller(): void
     {
         Routes::register(controller: 'Foo\Bar');
 
@@ -67,5 +57,17 @@ class RoutesTest extends TestCase
         static::assertNotNull($routes->getByAction('Foo\Bar@send'));
         static::assertNotNull($routes->getByAction('Foo\Bar@show'));
         static::assertNotNull($routes->getByAction('Foo\Bar@login'));
+    }
+
+    public function test_uses_custom_middleware(): void
+    {
+        Routes::register(middleware: 'guest:web');
+
+        /** @var \Illuminate\Routing\RouteCollection $routes */
+        $routes = tap($this->app->make('router')->getRoutes())->refreshNameLookups();
+
+        static::assertSame(['guest:web'], $routes->match(Request::create('/auth/email/send', 'POST'))->middleware());
+        static::assertSame(['guest:web'], $routes->match(Request::create('/auth/email/login'))->middleware());
+        static::assertSame(['guest:web'], $routes->match(Request::create('/auth/email/login', 'POST'))->middleware());
     }
 }

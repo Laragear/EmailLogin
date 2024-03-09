@@ -887,46 +887,31 @@
     </style>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const query = new URLSearchParams(window.location.search);
+            // If there is any error, show the HTML and do nothing else.
+            if ({{ $errors->any() ? 'true' : 'false' }}) {
+                document.getElementById("error").classList.remove("hidden");
+
+                return;
+            }
 
             const form = document.getElementById("enabled")
+            const button = document.getElementById("login")
 
-            const button = document.getElementById("login");
+            // Auto log in the user after 5 seconds
+            let timeout = timeout = setTimeout(() => button.click(), 5000)
 
-            let timeout = null;
+            // Add the CSS animation.
+            button.classList.add("autologin")
 
-            function setWaiting(e) {
+            // When the submission is received, remove the auto-log in.
+            form.addEventListener("submit", () => {
                 button.disabled = true
                 document.getElementById("go").classList.add("hidden")
                 document.getElementById("wait").classList.remove("hidden")
                 if (timeout) {
                     clearTimeout(timeout);
                 }
-            }
-
-            form.addEventListener("submit", setWaiting)
-
-            const error = {{ $errors->any() ? 'true' : 'false' }}
-
-            // Check the query is well-formed.
-            if (query.has("signature") && query.has("expires") && query.has("id") && query.has("guard") && !error) {
-                // Don't log in if the signature has expired.
-                if (query.get("expires") <= Math.floor(Date.now() / 1000)) {
-                    form.classList.add("hidden")
-                    document.getElementById("disabled").classList.remove("hidden")
-                }
-                // Add the button animation and set a timeout to automatically log in the user.
-                else {
-                    button.classList.add("autologin")
-                    timeout = setTimeout(() => {
-                        button.click()
-                    }, 5000)
-                }
-
-            } else {
-                form.classList.add("hidden")
-                document.getElementById("error").classList.remove("hidden")
-            }
+            })
         })
     </script>
 </head>
@@ -936,14 +921,14 @@
         <div class="mx-auto max-w-md">
             <h1 class="mb-4 border-b border-b-slate-200 pb-4 text-center text-2xl text-slate-600">Log in</h1>
 
-            <div id="disabled" class="hidden text-center">
-                <p class="mb-4">The login link you have requested has expired.</p>
-                <a href="/" target="_self" class="px-2 py-3 text-blue-800 underline">&laquo; Go back to the application</a>
+            <div id="error" class="hidden text-center">
+                <p class="mb-4">The login link you have requested is invalid or has expired.</p>
+                <a href="{{ config('app.url') }}" target="_self" class="px-2 py-3 text-blue-800 underline">&laquo; Go back to the application</a>
             </div>
 
             <form method="post" id="enabled" class="text-md text-center">
                 @csrf
-                <p class="mb-4">You're here because you received an email to login. Just click the link below to proceed or wait some seconds.</p>
+                <p class="mb-4">You're here because you received an email to login. Just click the link below or wait some seconds.</p>
                 <button id="login" type="submit" class="inline-block translate-y-0 transform-gpu rounded-lg bg-blue-700 px-5 py-3 text-blue-50 shadow-md shadow-slate-900/30 ring-gray-900/5 transition-colors hover:bg-blue-800 active:bg-blue-900 active:shadow active:translate-y-1 active:disabled:translate-y-0 disabled:shadow-none disabled:cursor-wait disabled:ring-inset">
                     Login to the application
                     <span id="go" class="inline-block ml-2 h-5 w-5">→</span>
@@ -955,11 +940,6 @@
                     </span>
                 </button>
             </form>
-
-            <div id="error" class="hidden text-center">
-                <p class="mb-4">The login link you have requested is invalid, expired, or has been tampered with.</p>
-                <a href="/" target="_self" class="px-2 py-3 text-blue-800 underline">&laquo; Go back to the application</a>
-            </div>
         </div>
     </div>
 </div>
