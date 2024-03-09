@@ -1,0 +1,76 @@
+{
+    "name": "laragear/email-login",
+    "description": "Authenticate users through their email in 1 minute.",
+    "type": "library",
+    "license": "MIT",
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "keywords": [
+        "laravel",
+        "authentication",
+        "mail",
+        "login",
+        "email"
+    ],
+    "authors": [
+        {
+            "name": "Italo Israel Baeza Cabrera",
+            "email": "darkghosthunter@gmail.com",
+            "homepage": "https://github.com/sponsors/DarkGhostHunter"
+        }
+    ],
+    "support": {
+        "source": "https://github.com/Laragear/EmailLogin",
+        "issues": "https://github.com/Laragear/EmailLogin/issues"
+    },
+    "require": {
+        "php": "^8.1",
+        "illuminate/support": "10.*|11.*",
+        "illuminate/config": "10.*|11.*",
+        "illuminate/http": "10.*|11.*",
+        "illuminate/auth": "10.*|11.*",
+        "illuminate/mail": "10.*|11.*"
+    },
+    "require-dev": {
+        "laragear/meta-testing": "2.*",
+        "orchestra/testbench": "8.*|9.*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Laragear\\EmailLogin\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests",
+            "App\\Http\\Controllers\\Auth\\": "stubs/controllers"
+        }
+    },
+    "suggest": {
+        "illuminate/queue": "For queueing emails. (10.*|11.*)"
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit --coverage-clover build/logs/clover.xml",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Laragear\\EmailLogin\\EmailLoginServiceProvider"
+            ]
+        }
+    },
+    "funding": [
+        {
+            "type": "GitHub Sponsorship",
+            "url": "https://github.com/sponsors/DarkGhostHunter"
+        },
+        {
+            "type": "Paypal",
+            "url": "https://paypal.me/darkghosthunter"
+        }
+    ]
+}
