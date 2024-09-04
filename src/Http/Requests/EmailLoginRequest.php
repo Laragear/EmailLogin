@@ -10,8 +10,9 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\UserProvider as UserProviderContract;
 use Illuminate\Contracts\Config\Repository as ConfigContract;
-use Illuminate\Contracts\Mail\Factory as FactoryContract;
+use Illuminate\Contracts\Mail\Factory as MailerFactoryContract;
 use Illuminate\Contracts\Mail\Mailable as MailableContract;
+use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -19,9 +20,14 @@ use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\Mails\LoginEmail;
 use function __;
 use function array_merge;
+use function back;
+use function implode;
 use function is_int;
 use function is_string;
+use function parse_url;
+use function value;
 use function with;
+use const PHP_URL_PATH;
 
 class EmailLoginRequest extends FormRequest
 {
@@ -34,24 +40,25 @@ class EmailLoginRequest extends FormRequest
 
     /**
      * The destination route name.
+     */
+    protected Closure $destination;
+
+    /**
+     * The destination parameters to include.
+     */
+    protected array $destinationParameters = [];
+
+    /**
+     * The key where the remember input resides in this request.
      *
      * @var string
      */
-    protected string $destinationRoute;
+    protected bool $shouldRemember = false;
 
     /**
-     * The destination query.
-     *
-     * @var array<string, string>
+     * The amount of time the Login Email intent should last.
      */
-    protected array $destinationQuery = [];
-
-    /**
-     * The rules to use to validate the email before sending.
-     *
-     * @var array<string|\Illuminate\Contracts\Validation\ValidationRule>
-     */
-    protected array $rules = ['email'];
+    protected DateTimeInterface|int|string $expiration;
 
     /**
      * The guard to use to log in the user through the email.
@@ -61,28 +68,9 @@ class EmailLoginRequest extends FormRequest
     protected string $guard;
 
     /**
-     * The key where the email string resides in this request.
-     *
-     * @var string
-     */
-    protected string $emailKey;
-
-    /**
-     * The key where the remember input resides in this request.
-     *
-     * @var string
-     */
-    protected string $rememberKey = 'remember';
-
-    /**
      * The application configuration.
      */
     protected ConfigContract $config;
-
-    /**
-     * The amount of time the Login Email intent should last.
-     */
-    protected DateTimeInterface|DateInterval|int $minutes;
 
     /**
      * Add additional credentials to locate the proper User.
@@ -92,29 +80,142 @@ class EmailLoginRequest extends FormRequest
     protected array $credentials = [];
 
     /**
-     * Prepare the data for validation.
+     *
+     * The additional metadata to include in the underlying Email Login Intent.
+     */
+    protected Arrayable|array $metadata = [];
+
+    /**
+     * The data used to throttle the request, if required.
+     */
+    protected ?Closure $throttle = null;
+
+    /**
+     * Validate the class instance.
      *
      * @return void
      */
-    protected function prepareForValidation(): void
+    public function validateResolved(): void
     {
-        // Instead of validating the request, we will set some configuration defaults first;
+        // Instead of validating the request, we will set configuration defaults.
         $this->config = $this->container->make('config');
 
-        $this->minutes = 60 * (int) $this->config->get('email-login.minutes');
-        $this->destinationRoute = $this->config->get('email-login.route.name');
-        $this->guard = $this->config->get('email-login.guard') ?: $this->config->get('auth.defaults.guard');
-        $this->emailKey = $this->config->get("email-login.guards.$this->guard");
+        $this->expiration = 60 * (int) $this->config->get('email-login.expiration');
+        $this->guard = $this->config->get('email-login.defaults.guard') ?: $this->config->get('auth.defaults.guard');
+
+        $this->withRoute($this->config->get('email-login.route.name'));
     }
 
     /**
-     * Get the validation rules that apply to the request.
+     * Add additional credentials to locate the user.
      *
-     * @return array<string,string>
+     * @return $this
      */
-    public function rules(): array
+    public function withCredentials(array $credentials): static
     {
-        return [$this->emailKey => 'required|string'];
+        $this->credentials = $credentials;
+
+        return $this;
+    }
+
+    /**
+     * Sets the minutes to keep the Email Login intent alive.
+     *
+     * @return $this
+     */
+    public function expiresAt(DateTimeInterface|int|string $minutes): static
+    {
+        $this->expiration = $minutes;
+
+        return $this;
+    }
+
+    /**
+     * Changes the location of the remember in the request.
+     *
+     * @return $this
+     */
+    public function withRemember(Closure|string|bool $condition = 'remember'): static
+    {
+        $this->shouldRemember = is_string($condition) ? $this->boolean($condition) : (bool) value($condition, $this);
+
+        return $this;
+    }
+
+    /**
+     * Defines the guard to use.
+     *
+     * @return $this
+     */
+    public function withGuard(string $guard): static
+    {
+        $this->guard = $guard;
+
+        return $this;
+    }
+
+    /**
+     * Sets the raw string where the user should log in.
+     *
+     * @return $this
+     */
+    public function withRawLocation(Closure|string $callback): static
+    {
+        if (is_string($callback)) {
+            $callback = fn() => $callback;
+        }
+
+        $this->destination = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Sets the path where the user should log in.
+     *
+     * @return $this
+     */
+    public function withPath(string $path, array $extra = []): static
+    {
+        return $this->withParameters($extra)->withRawLocation(
+            fn (array $parameters): string => $this->container->make('url')->to($path, $parameters)
+        );
+    }
+
+    /**
+     * Sets the action where the user should log in.
+     *
+     * @return $this
+     */
+    public function withAction(string|array $action, array $parameters = []): static
+    {
+        return $this->withParameters($parameters)->withRawLocation(
+            fn (array $parameters): string => $this->container->make('url')->action($action, $parameters)
+        );
+    }
+
+    /**
+     * Sets the route name where the user should log in.
+     *
+     * @return $this
+     */
+    public function withRoute(string $name, array $parameters = []): static
+    {
+        return $this->withParameters($parameters)->withRawLocation(
+            fn (array $parameters): string => $this->container->make('url')->route($name, $parameters)
+        );
+    }
+
+    /**
+     * Sets the query parameters to include in the Email Login URL.
+     *
+     * @return $this
+     */
+    public function withParameters(array $query): static
+    {
+        $this->destinationParameters = $query;
+
+        return $this;
     }
 
     /**
@@ -123,7 +224,7 @@ class EmailLoginRequest extends FormRequest
      * @param  \Closure(\Laragear\EmailLogin\Mails\LoginEmail):(void|\Illuminate\Contracts\Mail\Mailable)|\Illuminate\Contracts\Mail\Mailable|class-string<\Illuminate\Contracts\Mail\Mailable>  $mailable
      * @return $this
      */
-    public function mailable(Closure|MailableContract|string $mailable): static
+    public function withMailable(Closure|MailableContract|string $mailable): static
     {
         // If the dev uses a custom mailable as a class string, allow the app to resolve it.
         if (is_string($mailable)) {
@@ -142,118 +243,92 @@ class EmailLoginRequest extends FormRequest
     }
 
     /**
-     * Sets the query parameters to include in the Email Login URL.
+     * Throttles the login request using the given login.
      *
      * @return $this
      */
-    public function withQuery(array $query): static
-    {
-        return $this->toRoute($this->destinationRoute, $query);
-    }
+    public function throttleBy(
+        DateTimeInterface|DateInterval|string|int $duration,
+        string $store = null,
+        string $key = null
+    ): static {
+        $this->throttle = function () use ($duration, $store, $key): void {
+            $key = implode('|', [
+                $this->config->get('email-login.cache.prefix'),
+                $this->config->get('email-login.throttle.prefix'),
+                $this->throttle['key'] ?? $this->fingerprint()
+            ]);
 
-    /**
-     * Sets the mail link destination to the given route.
-     *
-     * @return $this
-     */
-    public function toRoute(string $route, array $query = null): static
-    {
-        $this->destinationRoute = $route;
-        $this->destinationQuery = $query ?? $this->destinationQuery;
+            $this->container->make('cache')
+                ->store($this->throttle['store'])
+                ->remember($key, $this->throttle['expire'], $this->send(...));
+        };
 
         return $this;
     }
 
     /**
-     * Defines the guard to use.
+     * Adds additional metadata to the underlying Email Login intent.
      *
      * @return $this
      */
-    public function guard(string $guard): static
+    public function withMetadata(Arrayable|array $metadata): static
     {
-        $this->guard = $guard;
+        $this->metadata = $metadata;
 
         return $this;
     }
 
     /**
-     * Changes the location of the remember in the request.
-     *
-     * @return $this
+     * Sends the Login Email and returns a redirection back.
      */
-    public function rememberKey(string $rememberKey): static
+    public function sendAndBack($status = 302, $headers = [], $fallback = false): RedirectResponse
     {
-        $this->rememberKey = $rememberKey;
+        $this->send();
 
-        return $this;
+        return back($status, $headers, $fallback);
     }
 
     /**
-     * Sets the minutes to keep the Email Login intent alive.
-     *
-     * @return $this
+     * Sends to send the email.
      */
-    public function aliveFor(DateTimeInterface|DateInterval|int $minutes): static
+    public function send(): void
     {
-        $this->minutes = is_int($minutes) ? $minutes * 60 : $minutes;
-
-        return $this;
+        empty($this->throttle) ? $this->attempt() : ($this->throttle)();
     }
 
     /**
-     * Add additional credentials to locate the user.
-     *
-     * @param  array<string, (\Closure(\Illuminate\Contracts\Database\Query\Builder|\Illuminate\Contracts\Database\Eloquent\Builder):void)|mixed>  $credentials
-     * @return $this
+     * Attempt to send the Login Email.
      */
-    public function withCredentials(array $credentials): static
+    protected function attempt(): bool
     {
-        $this->credentials = $credentials;
-
-        return $this;
-    }
-
-    /**
-     * Sends the Login Email.
-     */
-    public function send(): RedirectResponse
-    {
-        $this->dispatch($this->validated());
-
-        return $this->redirector->back();
-    }
-
-    /**
-     * Dispatches the email to the user, if found.
-     */
-    protected function dispatch(array $credentials): void
-    {
-        $credentials = array_merge($credentials, $this->credentials);
+        // If the user has set its own set of credentials, use it.
+        $credentials = $this->retrieveCredentials() ?: $this->validated();
 
         /** @var \Illuminate\Contracts\Events\Dispatcher $event */
         $event = $this->container->make('events');
 
-        $event->dispatch(new Attempting($this->guard, $credentials, $this->boolean($this->rememberKey)));
+        $event->dispatch(new Attempting($this->guard, $credentials, $this->shouldRemember));
 
         // If we can't find the user, bail out.
         if (!$user = $this->getUserProvider()->retrieveByCredentials($credentials)) {
             $event->dispatch(new Failed($this->guard, null, $credentials));
 
-            throw ValidationException::withMessages([
-                $this->emailKey => __('validation.email', ['attribute' => $this->emailKey])
-            ]);
+            throw ValidationException::withMessages(['email' => __('validation.email', ['attribute' => 'email'])]);
         }
 
-        $this->storeEmailLoginIntent($user);
+        $token = $this->getTokenForEmailLoginIntent($user);
 
-        $mail = LoginEmail::make($user, $this->buildUrl($user), $this->config->get('email-login.mail.view'))
-            ->onConnection($this->config->get('email-login.mail.connection'))
-            ->onQueue($this->config->get('email-login.mail.queue'));
+        $mail = LoginEmail::make($user, $this->buildUrl($token), $this->config->get('email-login.mail.view'))
+            ->when($connection = $this->config->get('email-login.mail.connection'))->onConnection($connection)
+            ->when($queue = $this->config->get('email-login.mail.queue'))->onQueue($queue);
 
-        $this->container->make(FactoryContract::class)
+        $this->container->make(MailerFactoryContract::class)
             ->mailer($this->config->get('email-login.mail.mailer'))
             ->to($user)
             ->send(with($mail, $this->mailable) ?: $mail);
+
+        return true;
     }
 
     /**
@@ -275,31 +350,46 @@ class EmailLoginRequest extends FormRequest
     /**
      * Builds the login email.
      */
-    protected function buildUrl(Authenticatable $user): string
+    protected function buildUrl(string $token): string
     {
-        $params = [
-            'guard' => $this->guard,
-            'id' => $user->getAuthIdentifier(),
-            'remember' => $this->boolean($this->rememberKey),
-        ];
-
-        // Add the intended url if it exists. Only add the path to avoid serialization issues.
-        if ($intended = parse_url($this->redirector->intended()->getTargetUrl(), PHP_URL_PATH)) {
-            $params['intended'] = $intended;
-        }
-
-        return $this->container->make('url')->temporarySignedRoute(
-            $this->destinationRoute, $this->minutes, array_merge($this->destinationQuery, $params)
-        );
+        // Override any conflicting query parameter when building the url.
+        return ($this->destination)(array_merge($this->destinationParameters, [
+            LoginByEmailRequest::INTENT_KEY => $token,
+            LoginByEmailRequest::STORE_KEY => $this->guard,
+        ]));
     }
 
     /**
      * Stores the Email Login Intent, so it can later be pulled out at login time.
      */
-    protected function storeEmailLoginIntent(Authenticatable $user): void
+    protected function getTokenForEmailLoginIntent(Authenticatable $user): string
     {
-        $this->container->make(EmailLoginBroker::class)->register(
-            $this->guard, $user->getAuthIdentifier(), $this->minutes
+        return $this->container->make(EmailLoginBroker::class)->create(
+            $this->guard,
+            $user->getAuthIdentifier(),
+            $this->expiration,
+            $this->shouldRemember,
+            $this->redirector->intended()->getTargetUrl(),
+            $this->metadata
         );
+    }
+
+    /**
+     * Returns the credentials to use by the developer.
+     */
+    protected function retrieveCredentials(): array
+    {
+        $credentials = [];
+
+        foreach ($this->credentials as $key => $value) {
+            // Find the key only if the key is an integer.
+            if (is_int($key) && !$value instanceof Closure && null !== $input = $this->input($value)) {
+                $credentials[$value] = $input;
+            }
+
+            $credentials[$key] = $value;
+        }
+
+        return $credentials;
     }
 }

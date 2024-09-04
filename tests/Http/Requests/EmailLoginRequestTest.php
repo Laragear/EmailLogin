@@ -69,7 +69,7 @@ class EmailLoginRequestTest extends TestCase
 
         $this->mock(EmailLoginBroker::class)->expects('register')->with('web', 1, 60 * 5);
 
-        $request->send();
+        $request->sendAndBack();
 
         $mail->assertQueued(LoginEmail::class, static function (LoginEmail $mail): bool {
             static::assertSame('email-login::mail.login', $mail->view);
@@ -115,7 +115,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 5 * 60, ['id' => 1, 'guard' => 'web', 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->send();
+        $request->sendAndBack();
 
         $event->assertNotDispatched(Failed::class);
         $mail->assertQueued(LoginEmail::class);
@@ -127,7 +127,7 @@ class EmailLoginRequestTest extends TestCase
         $this->expectException(ValidationException::class);
         $this->expectExceptionMessage('The email field must be a valid email address.');
 
-        $this->createRequest(['email' => 'invalid@bar.com'])->send();
+        $this->createRequest(['email' => 'invalid@bar.com'])->sendAndBack();
     }
 
     #[Test]
@@ -135,7 +135,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $mail = Mail::fake();
 
-        $this->createRequest()->mailable(TestMailable::class)->send();
+        $this->createRequest()->withMailable(TestMailable::class)->sendAndBack();
 
         $mail->assertSent(TestMailable::class);
     }
@@ -145,7 +145,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $mail = Mail::fake();
 
-        $this->createRequest()->mailable(new TestMailable())->send();
+        $this->createRequest()->withMailable(new TestMailable())->sendAndBack();
 
         $mail->assertSent(TestMailable::class);
     }
@@ -155,7 +155,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $mail = Mail::fake();
 
-        $this->createRequest()->mailable(fn () => new TestMailable())->send();
+        $this->createRequest()->withMailable(fn () => new TestMailable())->sendAndBack();
 
         $mail->assertSent(TestMailable::class);
     }
@@ -169,7 +169,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 5 * 60, ['foo' => 'bar', 'guard' => 'web', 'id' => 1, 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->withQuery(['foo' => 'bar'])->send();
+        $request->withParameters(['foo' => 'bar'])->sendAndBack();
     }
 
     #[Test]
@@ -181,7 +181,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('foo.bar', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->toRoute('foo.bar')->send();
+        $request->withRoute('foo.bar')->sendAndBack();
     }
 
     #[Test]
@@ -193,7 +193,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('foo.bar', 5 * 60, ['foo' => 'bar', 'guard' => 'web', 'id' => 1, 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->toRoute('foo.bar', ['foo' => 'bar'])->send();
+        $request->withRoute('foo.bar', ['foo' => 'bar'])->sendAndBack();
     }
 
     #[Test]
@@ -209,7 +209,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 5 * 60, ['guard' => 'baz', 'id' => 1, 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->guard('baz')->send();
+        $request->withGuard('baz')->sendAndBack();
     }
 
     #[Test]
@@ -221,7 +221,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => true])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->rememberKey('remember_device')->send();
+        $request->withRemember('remember_device')->sendAndBack();
     }
 
     #[Test]
@@ -233,7 +233,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 10 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->aliveFor(10)->send();
+        $request->expiresAt(10)->sendAndBack();
     }
 
     #[Test]
@@ -247,7 +247,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->withCredentials(['name' => 'foo'])->send();
+        $request->withCredentials(['name' => 'foo'])->sendAndBack();
 
         $event->assertDispatched(Attempting::class, static function (Attempting $event): bool {
             static::assertSame('web', $event->guard);
@@ -267,7 +267,7 @@ class EmailLoginRequestTest extends TestCase
             ->with('auth.email.login', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false, 'intended' => '/foo/bar'])
             ->andReturn('http://localhost/path/to/login/email');
 
-        $request->send();
+        $request->sendAndBack();
     }
 
 }

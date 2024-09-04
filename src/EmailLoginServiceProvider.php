@@ -2,8 +2,9 @@
 
 namespace Laragear\EmailLogin;
 
-use Illuminate\Contracts\Foundation\Application as ApplicationContract;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
+use Laragear\TokenAction\Store;
 
 /**
  * @internal
@@ -22,12 +23,13 @@ class EmailLoginServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(static::CONFIG, 'email-login');
         $this->loadViewsFrom(static::VIEWS, 'email-login');
 
-        $this->app->singleton(EmailLoginBroker::class, static function (ApplicationContract $app): EmailLoginBroker {
+        $this->app->bind(EmailLoginBroker::class, static function (Container $app): EmailLoginBroker {
             $config = $app->make('config');
 
             return new EmailLoginBroker(
-                $app->make('cache')->store($config->get('email-login.cache.store')),
-                $config->get('email-login.cache.prefix')
+                $app->make(Store::class),
+                $config->get('email-login.cache.store'),
+                $config->get('email-login.cache.prefix'),
             );
         });
     }

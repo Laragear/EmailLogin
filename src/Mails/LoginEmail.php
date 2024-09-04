@@ -7,22 +7,31 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Traits\Tappable;
+use function config;
+use function url;
 
 class LoginEmail extends Mailable implements ShouldQueue
 {
-    use Queueable, SerializesModels;
+    use Queueable;
+    use Tappable;
 
     /**
      * Create a new notification instance.
      */
-    final public function __construct(public Authenticatable $user, public string $url, string $view)
+    public function __construct(Authenticatable $user, ?string $url = null, ?string $view = null)
     {
-        $this->view = $view;
-
-        if ($this->user instanceof Model) {
-            $this->user = $this->user->withoutRelations();
+        if ($user instanceof Model) {
+            $user = $user->withoutRelations();
         }
+
+        $this->to = [$user];
+
+        $this->view = $view ?? config('email-login.route.view');
+        $this->viewData = [
+            'user' => $user,
+            'url' => $this->url ?? url(config('email-login.route.name'))
+        ];
     }
 
     /**

@@ -36,7 +36,7 @@ class EmailLoginBrokerTest extends TestCase
     {
         $this->cache->expects('pull')->with('test_prefix:test_guard:1', false)->andReturnTrue();
 
-        static::assertTrue($this->broker->retrieve('test_guard', '1'));
+        static::assertTrue($this->broker->get('test_guard', '1'));
     }
 
     #[Test]
@@ -44,7 +44,7 @@ class EmailLoginBrokerTest extends TestCase
     {
         $this->cache->expects('pull')->twice()->with('test_prefix:test_guard:1', false)->andReturnFalse();
 
-        static::assertFalse($this->broker->retrieve('test_guard', '1'));
+        static::assertFalse($this->broker->get('test_guard', '1'));
         static::assertTrue($this->broker->missing('test_guard', '1'));
     }
 }
