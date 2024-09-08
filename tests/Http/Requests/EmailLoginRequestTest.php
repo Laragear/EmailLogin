@@ -23,6 +23,7 @@ use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
 use Laragear\EmailLogin\Http\Routes;
 use Laragear\EmailLogin\Mails\LoginEmail;
 use Tests\TestCase;
+use function method_exists;
 use function now;
 use function parse_str;
 use function parse_url;
@@ -364,8 +365,7 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30)->send());
         static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30)->send());
 
-        $mail->assertQueued(LoginEmail::class);
-        $mail->assertQueuedCount(1);
+        $mail->assertQueuedTimes(LoginEmail::class, 1);
     }
 
     public function test_throttles_by_with_custom_store(): void
@@ -385,8 +385,7 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, 'test-store')->send());
         static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, 'test-store')->send());
 
-        $mail->assertQueued(LoginEmail::class);
-        $mail->assertQueuedCount(1);
+        $mail->assertQueuedTimes(LoginEmail::class, 1);
     }
 
     public function test_throttles_by_with_custom_key(): void
@@ -407,8 +406,7 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, key: 'test-key')->send());
         static::assertTrue($store->has('email-login|throttle|test-key'));
 
-        $mail->assertQueued(LoginEmail::class);
-        $mail->assertQueuedCount(1);
+        $mail->assertQueuedTimes(LoginEmail::class, 1);
     }
 
     public function test_with_metadata(): void

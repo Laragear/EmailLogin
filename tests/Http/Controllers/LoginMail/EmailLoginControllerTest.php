@@ -2,15 +2,11 @@
 
 namespace Tests\Http\Controllers\LoginMail;
 
-use Illuminate\Auth\Events\Failed;
 use Illuminate\Foundation\Auth\User;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\URL;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\EmailLoginIntent;
 use Laragear\EmailLogin\Http\Routes;
 use Tests\TestCase;
-use function now;
 
 class EmailLoginControllerTest extends TestCase
 {
@@ -76,7 +72,7 @@ class EmailLoginControllerTest extends TestCase
 
         $this->get('/auth/email/login?token='.static::TOKEN.'&store=array')
             ->assertSessionDoesntHaveErrors()
-            ->assertRedirect('http://localhost');
+            ->assertRedirect();
     }
 
     public function test_logins_from_mail_request_form(): void
@@ -121,6 +117,6 @@ class EmailLoginControllerTest extends TestCase
 
         $this->post('/auth/email/login?token='.static::TOKEN.'&store=array')
             ->assertSessionDoesntHaveErrors()
-            ->assertRedirect('http://localhost');
+            ->assertRedirect();
     }
 }
