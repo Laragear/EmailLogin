@@ -365,7 +365,7 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30)->send());
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30)->send());
 
-        $mail->assertQueuedTimes(LoginEmail::class, 1);
+        static::assertCount(1, $mail->queued(LoginEmail::class));
     }
 
     public function test_throttles_by_with_custom_store(): void
@@ -385,7 +385,7 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, 'test-store')->send());
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, 'test-store')->send());
 
-        $mail->assertQueuedTimes(LoginEmail::class, 1);
+        static::assertCount(1, $mail->queued(LoginEmail::class));
     }
 
     public function test_throttles_by_with_custom_key(): void
@@ -406,7 +406,7 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, key: 'test-key')->send());
         static::assertTrue($store->has('email-login|throttle|test-key'));
 
-        $mail->assertQueuedTimes(LoginEmail::class, 1);
+        static::assertCount(1, $mail->queued(LoginEmail::class));
     }
 
     public function test_with_metadata(): void
