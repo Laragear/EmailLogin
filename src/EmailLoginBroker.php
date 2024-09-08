@@ -2,41 +2,39 @@
 
 namespace Laragear\EmailLogin;
 
-use Carbon\CarbonImmutable;
 use Closure;
-use DateInterval;
 use DateTimeInterface;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Contracts\Cache\Repository as CacheContract;
 use Laragear\TokenAction\Builder;
-use Laragear\TokenAction\Store;
-use Laragear\TokenAction\Token;
+use function array_pad;
+use function explode;
 use function implode;
+use function value;
 
 
 class EmailLoginBroker
 {
     /**
+     * The token generator for the email login intents.
+     *
+     * @var \Closure(\Laragear\EmailLogin\EmailLoginIntent):string
+     */
+    public static Closure $tokenGenerator;
+
+    /**
      * Create a new Email Login Broker instance.
      */
-    public function __construct(
-        protected Builder $tokenBuilder,
-        protected ?string $store,
-        protected string $prefix,
-        protected Closure|string|null $token = null
-    ) {
+    public function __construct(protected Builder $tokenBuilder, protected ?string $store, protected string $prefix)
+    {
         //
     }
 
     /**
-     * Sets the token name to persist in the cache store.
-     *
-     * @param  (\Closure(\Laragear\EmailLogin\EmailLoginIntent):string)|string  $token
-     * @return $this
+     * Set the store to use with the token builder.
      */
-    public function token(Closure|string $token): static
+    public function store(?string $store): static
     {
-        $this->token = $token;
+        $this->store = $store;
 
         return $this;
     }
@@ -49,17 +47,22 @@ class EmailLoginBroker
         Authenticatable|string|int $id,
         DateTimeInterface|string|int $ttl,
         bool $remember = false,
-        string $intended = '/',
-        array $metadata = []
+        ?string $intended = null,
+        array $metadata = [],
+        Closure|string $token = null
     ): string {
         if ($id instanceof Authenticatable) {
             $id = $id->getAuthIdentifier();
         }
 
-        return $this->tokenBuilder->store($this->store)
-            ->when($this->token)->as($this->token)
-            ->with(new EmailLoginIntent($guard, $id, $remember, $intended, $metadata))
-            ->until($ttl)->id;
+        $intent = new EmailLoginIntent($guard, $id, $remember, $intended, $metadata);
+
+        $token = value($token ?? static::$tokenGenerator, $intent);
+
+        $instance = $this->tokenBuilder->store($this->store)->as($this->getKey($token))->with($intent)->until($ttl);
+
+        // Return the ID of the token created, after the prefix.
+        return array_pad(explode('|', $instance->id, 2), 2, '')[1];
     }
 
     /**

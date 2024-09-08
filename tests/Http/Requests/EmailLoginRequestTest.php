@@ -4,27 +4,36 @@ namespace Tests\Http\Requests;
 
 use Illuminate\Auth\Events\Attempting;
 use Illuminate\Auth\Events\Failed;
-use Illuminate\Contracts\Auth\Factory as FactoryContract;
-use Illuminate\Contracts\Auth\UserProvider;
+use Illuminate\Contracts\Auth\Factory;
+use Illuminate\Contracts\Auth\Guard;
+use Illuminate\Contracts\Cache\Factory as CacheFactoryContract;
+use Illuminate\Contracts\Database\Query\Builder;
+use Illuminate\Contracts\Mail\Factory as MailerFactoryContract;
+use Illuminate\Contracts\Mail\Mailer;
+use Illuminate\Contracts\Routing\UrlGenerator;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Mail\Mailable;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
 use Laragear\EmailLogin\Http\Routes;
 use Laragear\EmailLogin\Mails\LoginEmail;
-use Mockery\MockInterface;
-use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use function now;
+use function parse_str;
+use function parse_url;
+use const PHP_URL_QUERY;
 
 class EmailLoginRequestTest extends TestCase
 {
     protected function defineEnvironment($app): void
     {
         LoginByEmailRequest::$destroyOnRegeneration = false;
+        TestMailable::$run = false;
     }
 
     protected function defineDatabaseMigrations(): void
@@ -38,12 +47,12 @@ class EmailLoginRequestTest extends TestCase
         ]);
     }
 
-    protected function defineRoutes($router)
+    protected function defineRoutes($router): void
     {
         Routes::register();
     }
 
-    protected function createRequest(array $request = ['email' => 'foo@bar.com']): EmailLoginRequest
+    protected function request(array $request = ['email' => 'foo@bar.com']): EmailLoginRequest
     {
         $request = EmailLoginRequest::create('https://localhost/auth/login/email', 'POST', $request);
         $request->setContainer($this->app);
@@ -55,33 +64,403 @@ class EmailLoginRequestTest extends TestCase
         return $request;
     }
 
-    #[Test]
-    public function sends_email(): void
+    public function test_uses_default_rules_to_validate(): void
     {
-        $request = $this->createRequest();
+        $request = $this->request();
 
-        $event = Event::fake();
+        static::assertTrue($request->send());
+
+        static::assertSame(['email' => 'foo@bar.com'], $request->validated());
+    }
+
+    public function test_uses_config_expiration(): void
+    {
+        $this->freezeSecond();
+
+        $this->app->make('config')->set('email-login.expiration', 30);
+
+        $this->app->beforeResolving(LoginEmail::class, function (string $class, array $parameters): void {
+            static::assertEquals($parameters['expiration'], now()->addMinutes(30));
+        });
+
+        static::assertTrue($this->request()->send());
+    }
+
+    public function test_uses_config_guard(): void
+    {
+        $this->app->make('config')->set('email-login.guard', 'test-guard');
+
+        $guard = $this->app->make('auth')->guard();
+        $auth = $this->mock(Factory::class);
+        $auth->expects('guard')->with('test-guard')->andReturn($guard);
+
+        $this->app->instance('auth', $auth);
+
+        static::assertTrue($this->request()->send());
+    }
+
+    public function test_uses_config_route(): void
+    {
+        $this->app->make('config')->set('email-login.route.name', 'test-route');
+
+        $request = $this->request();
+
+        $url = $this->mock(UrlGenerator::class);
+        $url->expects('route')->withArgs(fn (string $route): bool => 'test-route' === $route)->andReturn('test-route');
+        $this->instance('url', $url);
+
+        static::assertTrue($request->send());
+    }
+
+    public function test_uses_remember_with_default_key(): void
+    {
+        $request = $this->request(['email' => 'foo@bar.com', 'remember' => 'on']);
+
+        $this->mock(EmailLoginBroker::class)->expects('create')->withArgs(
+            function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
+                return $shouldRemember === true;
+            }
+        )->andReturn('test-token');
+
+        static::assertTrue($request->send());
+    }
+
+    public function test_uses_config_queue_and_connection(): void
+    {
+        $config = $this->app->make('config');
+        $config->set('queue.connections.test-connection', $config->get('queue.connections.sync'));
+
+        $this->app->make('config')->set([
+            'email-login.mail.connection' => 'test-connection',
+            'email-login.mail.queue' => 'test-queue',
+        ]);
+
+        $mailable = $this->mock(LoginEmail::class);
+        $mailable->expects('onConnection')->with('test-connection')->andReturnSelf();
+        $mailable->expects('onQueue')->with('test-queue')->andReturnSelf();
+
+        $mailer = $this->mock(Mailer::class);
+        $mailer->expects('send')->with($mailable);
+
+        $mailerFactory = $this->mock(MailerFactoryContract::class);
+        $mailerFactory->expects('mailer')->with(null)->andReturn($mailer);
+
+        static::assertTrue($this->request()->withMailable($mailable)->send());
+    }
+
+    public function test_uses_validated_credentials(): void
+    {
         $mail = Mail::fake();
 
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['id' => 1, 'guard' => 'web', 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
+        $request = $this->request();
 
-        $this->mock(EmailLoginBroker::class)->expects('register')->with('web', 1, 60 * 5);
+        $request->validate(['email' => 'required|email']);
 
-        $request->sendAndBack();
+        static::assertTrue($request->send());
 
-        $mail->assertQueued(LoginEmail::class, static function (LoginEmail $mail): bool {
-            static::assertSame('email-login::mail.login', $mail->view);
-            static::assertSame('http://localhost/path/to/login/email', $mail->url);
-            static::assertSame(1, $mail->user->getAuthIdentifier());
+        $mail->assertQueued(LoginEmail::class);
+    }
+
+    public function test_adds_credentials(): void
+    {
+        $mail = Mail::fake();
+
+        $request = $this->request(['email' => 'foo@bar.com', 'name' => 'bar', 'address' => 'bar']);
+
+        $request->withCredentials([
+            'email',
+            'name' => 'foo',
+            static function ($query): void {
+                static::assertInstanceOf(Builder::class, $query);
+
+                $query->where('password', 'test_password');
+            }
+        ]);
+
+        static::assertTrue($request->send());
+
+        $mail->assertQueued(LoginEmail::class);
+    }
+
+    public function test_uses_expiration(): void
+    {
+        $this->freezeSecond();
+
+        $this->app->beforeResolving(LoginEmail::class, function (string $class, array $parameters): void {
+            static::assertEquals($parameters['expiration'], now()->addMinutes(30));
+        });
+
+        static::assertTrue($this->request()->withExpiration(30)->send());
+    }
+
+    public function test_uses_expiration_as_string(): void
+    {
+        $this->freezeSecond();
+
+        $this->app->beforeResolving(LoginEmail::class, function (string $class, array $parameters): void {
+            static::assertEquals($parameters['expiration'], now()->addMinutes(30));
+        });
+
+        static::assertTrue($this->request()->withExpiration('30 minutes')->send());
+    }
+
+    public function test_uses_with_remember_key(): void
+    {
+        $request = $this->request(['email' => 'foo@bar.com', 'something' => 'on']);
+
+        $request->withRemember('something');
+
+        $this->mock(EmailLoginBroker::class)->expects('create')->withArgs(
+            function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
+                return $shouldRemember === true;
+            }
+        )->andReturn('test-token');
+
+        static::assertTrue($request->send());
+    }
+
+    public function test_uses_with_remember_condition(): void
+    {
+        $request = $this->request(['email' => 'foo@bar.com', 'remember' => '']);
+
+        $request->withRemember(true);
+
+        $this->mock(EmailLoginBroker::class)->expects('create')->withArgs(
+            function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
+                return $shouldRemember === true;
+            }
+        )->andReturn('test-token');
+
+        static::assertTrue($request->send());
+    }
+
+    public function test_uses_custom_guard(): void
+    {
+        $guard = $this->app->make('auth')->guard();
+        $auth = $this->mock(Factory::class);
+        $auth->expects('guard')->with('test-guard')->andReturn($guard);
+
+        $this->app->instance('auth', $auth);
+
+        static::assertTrue($this->request()->withGuard('test-guard')->send());
+    }
+
+    public function test_uses_custom_guard_with_manually_instancing_user_provider(): void
+    {
+        $userProvider = $this->app->make('auth')->guard()->getProvider();
+
+        $guard = $this->mock(Guard::class);
+
+        $auth = $this->mock(Factory::class);
+        $auth->expects('guard')->with('web')->andReturn($guard);
+        $auth->expects('createUserProvider')->with('users')->andReturn($userProvider);
+
+        $this->app->instance('auth', $auth);
+
+        static::assertTrue($this->request()->withGuard('web')->send());
+    }
+
+    public function test_with_path(): void
+    {
+        $request = $this->request();
+
+        $url = $this->mock(UrlGenerator::class);
+        $url->expects('to')->withArgs(static function (string $path, array $parameters): bool {
+            static::assertSame('foo', $path);
+            static::assertSame('baz',$parameters['bar']);
+
+            return true;
+        })->andReturn('foobarbaz');
+        $this->instance('url', $url);
+
+        static::assertTrue($request->withPath('foo', ['bar' => 'baz'])->send());
+    }
+
+    public function test_with_action(): void
+    {
+        $request = $this->request();
+
+        $url = $this->mock(UrlGenerator::class);
+        $url->expects('action')->withArgs(static function (string $path, array $parameters): bool {
+            static::assertSame('foo', $path);
+            static::assertSame('baz',$parameters['bar']);
+
+            return true;
+        })->andReturn('foobarbaz');
+        $this->instance('url', $url);
+
+        static::assertTrue($request->withAction('foo', ['bar' => 'baz'])->send());
+    }
+
+    public function test_with_route(): void
+    {
+        $request = $this->request();
+
+        $url = $this->mock(UrlGenerator::class);
+        $url->expects('route')->withArgs(static function (string $path, array $parameters): bool {
+            static::assertSame('foo', $path);
+            static::assertSame('baz',$parameters['bar']);
+
+            return true;
+        })->andReturn('foobarbaz');
+        $this->instance('url', $url);
+
+        static::assertTrue($request->withRoute('foo', ['bar' => 'baz'])->send());
+    }
+
+    public function test_with_parameters(): void
+    {
+        $request = $this->request();
+
+        $url = $this->mock(UrlGenerator::class);
+        $url->expects('route')->withArgs(static function (string $path, array $parameters): bool {
+            static::assertSame('auth.email.login', $path);
+            static::assertSame('baz',$parameters['bar']);
+
+            return true;
+        })->andReturn('foobarbaz');
+        $this->instance('url', $url);
+
+        static::assertTrue($request->withParameters(['bar' => 'baz'])->send());
+    }
+
+    public function test_with_mailable_as_class_string(): void
+    {
+        $mail = Mail::fake();
+
+        static::assertTrue($this->request()->withMailable(TestMailable::class)->send());
+
+        static::assertTrue(TestMailable::$run);
+
+        $mail->assertSent(TestMailable::class);
+    }
+
+    public function test_with_mailable_as_instance(): void
+    {
+        $mail = Mail::fake();
+
+        static::assertTrue($this->request()->withMailable(new TestMailable())->send());
+
+        $mail->assertSent(TestMailable::class);
+    }
+
+    public function test_with_mailable_as_callback(): void
+    {
+        $mail = Mail::fake();
+
+        static::assertTrue($this->request()->withMailable(fn() => new TestMailable())->send());
+
+        static::assertTrue(TestMailable::$run);
+
+        $mail->assertSent(TestMailable::class);
+    }
+
+    public function test_throttles_by(): void
+    {
+        $route = fn () => new Route('get', 'test-route', fn() => true);
+
+        $mail = Mail::fake();
+
+        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30)->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30)->send());
+
+        $mail->assertQueued(LoginEmail::class);
+        $mail->assertQueuedCount(1);
+    }
+
+    public function test_throttles_by_with_custom_store(): void
+    {
+        $route = fn () => new Route('get', 'test-route', fn() => true);
+
+        $mail = Mail::fake();
+
+        $store = $this->app->make('cache')->store();
+
+        $cache = $this->mock(CacheFactoryContract::class);
+        $cache->expects('store')->with('test-store')->andReturn($store)->twice();
+        $this->instance('cache', $cache);
+
+        $this->mock(EmailLoginBroker::class)->expects('create')->andReturn('test-token');
+
+        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, 'test-store')->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, 'test-store')->send());
+
+        $mail->assertQueued(LoginEmail::class);
+        $mail->assertQueuedCount(1);
+    }
+
+    public function test_throttles_by_with_custom_key(): void
+    {
+        $route = fn () => new Route('get', 'test-route', fn() => true);
+
+        $mail = Mail::fake();
+
+        $store = $this->app->make('cache')->store();
+
+        $cache = $this->mock(CacheFactoryContract::class);
+        $cache->expects('store')->with(null)->andReturn($store)->twice();
+        $this->instance('cache', $cache);
+
+        $this->mock(EmailLoginBroker::class)->expects('create')->andReturn('test-token');
+
+        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, key: 'test-key')->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, key: 'test-key')->send());
+        static::assertTrue($store->has('email-login|throttle|test-key'));
+
+        $mail->assertQueued(LoginEmail::class);
+        $mail->assertQueuedCount(1);
+    }
+
+    public function test_with_metadata(): void
+    {
+        EmailLoginBroker::$tokenGenerator = fn() => 'test-token';
+
+        static::assertTrue($this->request()->withMetadata(['foo' => 'bar'])->send());
+
+        $intent = $this->app->make(EmailLoginBroker::class)->get('test-token');
+
+        static::assertSame(['foo' => 'bar'], $intent->metadata);
+    }
+
+    public function test_send_and_back(): void
+    {
+        static::assertSame('https://localhost', $this->request()->sendAndBack()->getTargetUrl());
+    }
+
+    public function test_creates_default_mailable(): void
+    {
+        $mail = Mail::fake();
+
+        $this->request()->send();
+
+        $mail->assertQueued(LoginEmail::class, function (LoginEmail $mailable): bool {
+            parse_str(parse_url($mailable->url, PHP_URL_QUERY), $query);
+
+            static::assertTrue(Str::isUlid($query['token']));
+            static::assertSame('web', $query['store']);
+
+            static::assertInstanceOf(User::class, $mailable->user);
+            static::assertSame([['name' => 'foo', 'address' => 'foo@bar.com']], $mailable->to);
+            static::assertSame('laragear::email-login.mail.login', $mailable->markdown);
 
             return true;
         });
+    }
 
-        $event->assertDispatched(Attempting::class, static function (Attempting $event): bool {
+    public function test_returns_false_if_user_not_found(): void
+    {
+        static::assertFalse($this->request(['email' => 'invalid@bar.com'])->send());
+    }
+
+    public function test_fires_attempting_event(): void
+    {
+        $event = Event::fake([Attempting::class, Failed::class]);
+
+        $this->request()->send();
+
+        $event->assertDispatched(Attempting::class, function (Attempting $event): bool {
             static::assertSame('web', $event->guard);
-            static::assertSame(['email' => 'foo@bar.com'], $event->credentials);
+            static::assertSame('foo@bar.com', $event->credentials['email']);
             static::assertFalse($event->remember);
 
             return true;
@@ -90,189 +469,30 @@ class EmailLoginRequestTest extends TestCase
         $event->assertNotDispatched(Failed::class);
     }
 
-    #[Test]
-    public function sends_email_with_different_email_key(): void
+    public function test_fires_failed_event(): void
     {
-        $this->app->make('config')->set('email-login.guards.web', 'email_address');
+        $event = Event::fake([Attempting::class, Failed::class]);
 
-        $request = $this->createRequest(['email_address' => 'foo@bar.com']);
+        $this->request(['email' => 'invalid@bar.com'])->send();
 
-        $event = Event::fake();
-        $mail = Mail::fake();
+        $event->assertDispatched(Attempting::class);
 
-        $this->mock('auth', function (MockInterface $mock): void {
-            $userProvider = $this->mock(UserProvider::class, static function (MockInterface $mock): void {
-                $mock->expects('retrieveByCredentials')
-                    ->with(['email_address' => 'foo@bar.com'])
-                    ->andReturn(User::find(1));
-            });
-
-            $mock->expects('guard')->with('web')->andReturn((object) []);
-            $mock->expects('createUserProvider')->with('users')->andReturn($userProvider);
-        });
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['id' => 1, 'guard' => 'web', 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->sendAndBack();
-
-        $event->assertNotDispatched(Failed::class);
-        $mail->assertQueued(LoginEmail::class);
-    }
-
-    #[Test]
-    public function throws_if_user_email_not_found(): void
-    {
-        $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('The email field must be a valid email address.');
-
-        $this->createRequest(['email' => 'invalid@bar.com'])->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_custom_mailable_class(): void
-    {
-        $mail = Mail::fake();
-
-        $this->createRequest()->withMailable(TestMailable::class)->sendAndBack();
-
-        $mail->assertSent(TestMailable::class);
-    }
-
-    #[Test]
-    public function uses_custom_mailable_object(): void
-    {
-        $mail = Mail::fake();
-
-        $this->createRequest()->withMailable(new TestMailable())->sendAndBack();
-
-        $mail->assertSent(TestMailable::class);
-    }
-
-    #[Test]
-    public function uses_custom_mailable_closure(): void
-    {
-        $mail = Mail::fake();
-
-        $this->createRequest()->withMailable(fn () => new TestMailable())->sendAndBack();
-
-        $mail->assertSent(TestMailable::class);
-    }
-
-    #[Test]
-    public function uses_custom_query(): void
-    {
-        $request = $this->createRequest();
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['foo' => 'bar', 'guard' => 'web', 'id' => 1, 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->withParameters(['foo' => 'bar'])->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_custom_route(): void
-    {
-        $request = $this->createRequest();
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('foo.bar', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->withRoute('foo.bar')->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_custom_route_with_query(): void
-    {
-        $request = $this->createRequest();
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('foo.bar', 5 * 60, ['foo' => 'bar', 'guard' => 'web', 'id' => 1, 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->withRoute('foo.bar', ['foo' => 'bar'])->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_custom_guard(): void
-    {
-        $request = $this->createRequest();
-
-        $this->instance('auth', $this->mock(FactoryContract::class, function (MockInterface $mock): void {
-            $mock->expects('guard')->andReturn($this->app->make('auth')->guard('web'));
-        }));
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['guard' => 'baz', 'id' => 1, 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->withGuard('baz')->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_custom_remember_key(): void
-    {
-        $request = $this->createRequest(['email' => 'foo@bar.com', 'remember_device' => true]);
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => true])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->withRemember('remember_device')->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_custom_link_ttl(): void
-    {
-        $request = $this->createRequest();
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 10 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->expiresAt(10)->sendAndBack();
-    }
-
-    #[Test]
-    public function uses_additional_credentials(): void
-    {
-        $request = $this->createRequest();
-
-        $event = Event::fake();
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->withCredentials(['name' => 'foo'])->sendAndBack();
-
-        $event->assertDispatched(Attempting::class, static function (Attempting $event): bool {
+        $event->assertDispatched(Failed::class, function (Failed $event): bool {
             static::assertSame('web', $event->guard);
-            static::assertSame(['email' => 'foo@bar.com', 'name' => 'foo'], $event->credentials);
+            static::assertNull($event->user);
+            static::assertSame('invalid@bar.com', $event->credentials['email']);
+
             return true;
         });
     }
-
-    #[Test]
-    public function integrates_intended_route(): void
-    {
-        $request = $this->createRequest();
-
-        $this->app->make('session')->put('url.intended', '/foo/bar');
-
-        $this->mock('url')->expects('temporarySignedRoute')
-            ->with('auth.email.login', 5 * 60, ['guard' => 'web', 'id' => 1, 'remember' => false, 'intended' => '/foo/bar'])
-            ->andReturn('http://localhost/path/to/login/email');
-
-        $request->sendAndBack();
-    }
-
 }
 
 class TestMailable extends Mailable
 {
+    public static bool $run = false;
 
+    public function __construct()
+    {
+        static::$run = true;
+    }
 }

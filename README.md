@@ -57,8 +57,8 @@ EmailLoginRoutes::register();
 > use Laragear\EmailLogin\Http\Routes as EmailLoginRoutes;
 > 
 > EmailLoginRoutes::register(
->     send: 'auth/email',
->     login: 'auth/login/email',
+>     send: '/auth/email',
+>     login: '/auth/login/email',
 >     controller: 'App/Http/Controllers/MyEmailLoginController',
 > );
 > ```
@@ -85,12 +85,12 @@ To implement the login email manually, you need to capture the user credentials 
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    $request->validate([
+Route::post('/auth/email', function (EmailLoginRequest $email) {
+    $email->validate([
         'email' => 'required|email'
     ]);
 
-    return $request->sendAndBack();
+    return $email->sendAndBack();
 });
 ```
 
@@ -100,17 +100,29 @@ You can also use `send()` and `back()` separately if you need to do something be
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    $request->validate([
+Route::post('/auth/email', function (EmailLoginRequest $email) {
+    $email->validate([
         'email' => 'required|email'
     ]);
     
-    $request->send();
+    $email->send();
     
     session()->flash('message', 'Email sent successfully!');
 
     return back();
 });
+```
+
+Both `sendAndBack()` and `send()` return `true` if the user with the credentials is found and the email is sent (or queued to be sent), and `false` if the user doesn't exist. Some apps will be fine by obfuscating the user existence, but some may want to show if the user doesn't exist.
+
+```php
+if ($email->send()) {
+    session()->flash('message', 'Email sent successfully!');
+} else {
+    throw ValidationException::withMessages([
+        'email' => 'The user with the email does not exist'
+    ]);
+}
 ```
 
 ### Custom credentials
@@ -123,19 +135,19 @@ You can override the credentials to find the user using the `withCredentials()` 
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    $request->validate([
+Route::post('/auth/email', function (EmailLoginRequest $email) {
+    $email->validate([
         // ...
     ]);
     
-    return $request->withCredentials(['username', 'mail'])->sendAndBack();
+    return $email->withCredentials(['username', 'mail'])->sendAndBack();
 });
 ```
 
 Keys can also be callbacks that receive the query to find the User.
 
 ```php
-$request->withCredentials([
+$email->withCredentials([
     'mail',
     fn($query) => $query->where('is_human', '>', 0.5)
 ]);
@@ -147,12 +159,12 @@ Alternatively, if you issue a string key, the value of the key will be used as a
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    $request->validate([
-        'email' => 'required|email:rfc,dns|exists:users,email'
+Route::post('/auth/email', function (EmailLoginRequest $email) {
+    $email->validate([
+        'email' => 'required|email'
     ]);
     
-    return $request->withCredentials([
+    return $email->withCredentials([
         'mail' => 'john@doe.com',
         'banned_at' => null,
         fn($query) => $query->where('standing', '>', 0.5)
@@ -168,8 +180,8 @@ The link to login sent in the email has an expiration time, which by default is 
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    return $request->expiresAt(10)->sendAndBack();
+Route::post('/auth/email', function (EmailLoginRequest $email) {
+    return $email->withExpiration(10)->sendAndBack();
 });
 ```
 
@@ -181,8 +193,8 @@ If your request has the `remember` key, and it's _truthy_, the user will be reme
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->withRemember('remember_me')->sendAndBack();
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->withRemember('remember_me')->sendAndBack();
 });
 ```
 
@@ -192,8 +204,8 @@ Alternatively, issuing anything else will be used as the condition, like a boole
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->withRemember($request->boolean('remember_me'))->sendAndBack();
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->withRemember($email->boolean('remember_me'))->sendAndBack();
 });
 ```
 
@@ -205,8 +217,8 @@ By default, the Email Login assumes the user will authenticate using the default
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->withGuard('admin')->sendAndBack();
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->withGuard('admin')->sendAndBack();
 });
 ```
 
@@ -218,32 +230,19 @@ You may change the URL where the Email Login will point to through the [configur
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    return $request->withRoute('auth.email.login', ['is_cool' => true])->sendAndBack();
+Route::post('/auth/email', function (EmailLoginRequest $email) {
+    return $email->withRoute('auth.email.login', ['is_cool' => true])->sendAndBack();
 });
 ```
 
-If you need total control on the route, you can use `withRawLocation()` that accepts a callback with the parameters array that should be included to find the Email Login Intent.
+You may also only append query parameters to the default URL set in the configuration using `withParameters()` method.
 
 ```php
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/email', function (EmailLoginRequest $request) {
-    return $request
-        ->withRawLocation(fn($parameters) => url()->to('auth/login/email', $parameters))
-        ->sendAndBack();
-});
-```
-
-You may also only append query parameters to the default URL using `withParameters()` method.
-
-```php
-use Illuminate\Support\Facades\Route;
-use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
-
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->withParameters(['is_cool' => true])->sendAndBack();
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->withParameters(['is_cool' => true])->sendAndBack();
 });
 ```
 
@@ -260,8 +259,8 @@ use App\Mails\MyLoginMailable;
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->withMailable(MyLoginMailable::class)->sendAndBack();
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->withMailable(MyLoginMailable::class)->sendAndBack();
 });
 ```
 
@@ -272,8 +271,8 @@ use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 use Laragear\EmailLogin\Mails\LoginEmail;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->withMailable(function (LoginEmail $mailable) {
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->withMailable(function (LoginEmail $mailable) {
         $mailable->view('my-login-email', ['theme' => 'blue']);
         
         $mailable->subject('Login to this awesome app');
@@ -289,27 +288,23 @@ If you want to throttle sending the email _opaquely_, just use the `throttleBy()
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    return $request->throttleBy(30)->sendAndReturnBack();
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    return $email->throttleBy(30)->sendAndReturnBack();
 });
 ```
 
-The throttling uses the same cache used to store the email login intent. You may change the cache store to use as second name, and even the key to use as throttler as third argument.
+The throttling uses the same cache used to store the email login intent, and the request fingerprint (IP) by default. You may change the cache store to use as second name, and even the key to use as throttler as third argument.
 
 ```php
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 
-Route::post('auth/login/email', function (EmailLoginRequest $request) {
-    $key = "$request->email";
+Route::post('/auth/login/email', function (EmailLoginRequest $email) {
+    $key = strtolower($email->input('email'));
 
-    return $request->throttleBy(30, 'redis', $key)->sendAndReturnBack();
+    return $email->throttleBy(30, 'redis', $key)->sendAndReturnBack();
 });
 ```
-
-> [!TIP]
-> 
-> The throttling uses the request fingerprint (IP), so no email will be sent even if the address changes.
 
 ### Adding metadata
 
@@ -320,13 +315,15 @@ use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
 
+// Send the email and save the metadata internally.
 Route::post('/auth/email', function (EmailLoginRequest $request) {
     return $request
         ->withMetadata(['is_cool' => true])
         ->sendAndReturnBack();
 });
 
-Route::get('auth/login/email', function (LoginByEmailRequest $request) {
+// Show the login form with the metadata.
+Route::get('/auth/login/email', function (LoginByEmailRequest $request) {
     return view('email-login::email-login.web.login', [
         'is_cool' => $request->metadata('is_cool')
     ]);
@@ -337,13 +334,14 @@ Route::get('auth/login/email', function (LoginByEmailRequest $request) {
 > 
 > The metadata is not transmitted in the email link, but stored as part of the Email Login Intent inside your application cache.
 
+
 ## Login in from a Mail
 
 The login procedure from an email must be done in two controllers actions: one showing a form, and another authenticating the user. Both of these routes should use the `guest` middleware to avoid being hit by an authenticated user.
 
 > [!WARNING]
 > 
-> This must be done in two controllers because **some email clients and servers will preload, cache and/or prefetch the login link**. While this is usually done to accelerate navigation or filter malicious sites, this will accidentally log in the user outside its device. 
+> The Log In must be done in two controllers because **some email clients and servers will preload, cache and/or prefetch the login link**. While this is usually done to accelerate navigation or filter malicious sites, this will accidentally log in the user outside its device, and render subsequent login attempts unsuccessful. 
 > 
 > To avoid this accidental authentication, make a route that shows a form to login, and another to authenticate the user.
 
@@ -353,17 +351,18 @@ Use the `LoginByEmailRequest` to return the view with the form to login, and to 
 - When receiving the login form submission, the user will be automatically logged in.
 
 ```php
-use Illuminate\Http\Request;use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
 
 Route::middleware('guest')->group(function () {
-    Route::get('auth/login/mail', function (LoginByEmailRequest $request) {
-        // Show the form to log in. 
+    // Show the form to log in. 
+    Route::get('/auth/login/mail', function (LoginByEmailRequest $request) {
         return view('laragear::email-login.web.login')
     })->name('login.mail');
     
-    Route::post('auth/login/mail', function (LoginByEmailRequest $request) {
-        // User logged in automatically, show him the dashboard. 
+    // User logged in automatically, show him the dashboard. 
+    Route::post('/auth/login/mail', function (LoginByEmailRequest $request) {
         return $request->toIntended()
     });
 })
@@ -464,6 +463,23 @@ Route::post('/login-by-email', function (Request $request, EmailLoginBroker $bro
 
     return redirect('/dashboard');
 });
+```
+
+## Custom token string
+
+When generating the email login token, a random ULID will be generated. You may change the default generator by  setting a callback that receives the `EmailLoginIntent` and returns a (hopefully very) random string. You may do this in your `AppServiceProvider::register()`.
+
+```php
+use Illuminate\Support\Str;
+use Laragear\EmailLogin\EmailLoginBroker;
+use Laragear\EmailLogin\EmailLoginIntent;
+
+public function register()
+{
+    EmailLoginBroker::$tokenGenerator = function (EmailLoginIntent $intent) {
+        return Str::random(64);
+    };
+}
 ```
 
 ## Advanced Configuration
@@ -568,14 +584,14 @@ return [
         'mailer' => null,
         'connection' => null,
         'queue' => null,
-        'view' => 'laragear::email-login.mail.login',
+        'markdown' => 'laragear::email-login.mail.login',
     ],
 ];
 ```
 
 This specifies which mail driver to use to send the login email, and the queue connection and name that will receive it. When `null`, it will fall back to the application default, which is usually `smtp`.
 
-This also sets the default view to use to create the email. 
+This also sets the default view to use to create the email, which [uses Markdown](https://laravel.com/docs/11.x/mail#markdown-mailables).
 
 ## Laravel Octane Compatibility
 

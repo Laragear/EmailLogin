@@ -5,15 +5,16 @@ namespace Laragear\EmailLogin;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Jsonable;
 use JsonSerializable;
+use Stringable;
 use function json_encode;
 
-class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable
+class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable, Stringable
 {
     public function __construct(
         readonly public string $guard,
         readonly public mixed $id,
         readonly public bool $remember,
-        readonly public string $intended,
+        readonly public ?string $intended,
         readonly public array $metadata
     ) {
         //
@@ -67,5 +68,13 @@ class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable
     public function jsonSerialize(): mixed
     {
         return $this->toArray();
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function __toString(): string
+    {
+        return $this->toJson();
     }
 }

@@ -13,9 +13,7 @@ return [
     |
     */
 
-    'defaults' => [
-        'guard' => null,
-    ],
+    'guard' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -93,6 +91,6 @@ return [
         'mailer' => null,
         'connection' => null,
         'queue' => null,
-        'view' => 'laragear::email-login.mail.login',
+        'markdown' => 'laragear::email-login.mail.login',
     ],
 ];

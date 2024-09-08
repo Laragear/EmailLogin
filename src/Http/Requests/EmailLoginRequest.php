@@ -11,35 +11,46 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\UserProvider as UserProviderContract;
 use Illuminate\Contracts\Config\Repository as ConfigContract;
 use Illuminate\Contracts\Mail\Factory as MailerFactoryContract;
+use Illuminate\Contracts\Mail\Mailable;
 use Illuminate\Contracts\Mail\Mailable as MailableContract;
 use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Contracts\Validation\Factory as ValidationFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Foundation\Precognition;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Carbon;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\Mails\LoginEmail;
-use function __;
 use function array_merge;
 use function back;
 use function implode;
 use function is_int;
 use function is_string;
-use function parse_url;
+use function method_exists;
+use function now;
+use function tap;
 use function value;
 use function with;
-use const PHP_URL_PATH;
 
 class EmailLoginRequest extends FormRequest
 {
     /**
-     * The callback that returns the mailable to use.
+     * Default rules to use when not validating.
+     */
+    public const RULES = ['email' => 'required|email'];
+
+    /**
+     * The callback that modifies or returns the mailable to use.
      *
      * @var \Closure(\Laragear\EmailLogin\Mails\LoginEmail):(void|\Illuminate\Contracts\Mail\Mailable)|null
      */
     protected ?Closure $mailable = null;
 
     /**
-     * The destination route name.
+     * The destination closure that returns where the email should point to.
+     *
+     * @var \Closure(array $parameters):string
      */
     protected Closure $destination;
 
@@ -75,9 +86,9 @@ class EmailLoginRequest extends FormRequest
     /**
      * Add additional credentials to locate the proper User.
      *
-     * @var array<string, (\Closure(\Illuminate\Contracts\Database\Query\Builder|\Illuminate\Contracts\Database\Eloquent\Builder):void)|mixed>
+     * @var array<string, (\Closure(\Illuminate\Contracts\Database\Query\Builder|\Illuminate\Contracts\Database\Eloquent\Builder):void)|mixed>|null
      */
-    protected array $credentials = [];
+    protected ?array $credentials = null;
 
     /**
      *
@@ -86,9 +97,11 @@ class EmailLoginRequest extends FormRequest
     protected Arrayable|array $metadata = [];
 
     /**
-     * The data used to throttle the request, if required.
+     * A callback where the email sent is executed
+     *
+     * @var \Closure():bool)
      */
-    protected ?Closure $throttle = null;
+    protected Closure $execute;
 
     /**
      * Validate the class instance.
@@ -100,10 +113,14 @@ class EmailLoginRequest extends FormRequest
         // Instead of validating the request, we will set configuration defaults.
         $this->config = $this->container->make('config');
 
-        $this->expiration = 60 * (int) $this->config->get('email-login.expiration');
-        $this->guard = $this->config->get('email-login.defaults.guard') ?: $this->config->get('auth.defaults.guard');
+        $this->expiration = $this->config->get('email-login.expiration');
+        $this->guard = $this->config->get('email-login.guard') ?: $this->config->get('auth.defaults.guard');
+
+        $this->shouldRemember = $this->boolean('remember');
 
         $this->withRoute($this->config->get('email-login.route.name'));
+
+        $this->execute = $this->attempt(...);
     }
 
     /**
@@ -123,7 +140,7 @@ class EmailLoginRequest extends FormRequest
      *
      * @return $this
      */
-    public function expiresAt(DateTimeInterface|int|string $minutes): static
+    public function withExpiration(DateTimeInterface|int|string $minutes): static
     {
         $this->expiration = $minutes;
 
@@ -135,7 +152,7 @@ class EmailLoginRequest extends FormRequest
      *
      * @return $this
      */
-    public function withRemember(Closure|string|bool $condition = 'remember'): static
+    public function withRemember(Closure|string|bool $condition): static
     {
         $this->shouldRemember = is_string($condition) ? $this->boolean($condition) : (bool) value($condition, $this);
 
@@ -155,31 +172,17 @@ class EmailLoginRequest extends FormRequest
     }
 
     /**
-     * Sets the raw string where the user should log in.
-     *
-     * @return $this
-     */
-    public function withRawLocation(Closure|string $callback): static
-    {
-        if (is_string($callback)) {
-            $callback = fn() => $callback;
-        }
-
-        $this->destination = $callback;
-
-        return $this;
-    }
-
-    /**
      * Sets the path where the user should log in.
      *
      * @return $this
      */
     public function withPath(string $path, array $extra = []): static
     {
-        return $this->withParameters($extra)->withRawLocation(
-            fn (array $parameters): string => $this->container->make('url')->to($path, $parameters)
-        );
+        $this->destination = function (array $parameters) use ($path): string {
+            return $this->container->make('url')->to($path, $parameters);
+        };
+
+        return $this->withParameters($extra);
     }
 
     /**
@@ -189,9 +192,11 @@ class EmailLoginRequest extends FormRequest
      */
     public function withAction(string|array $action, array $parameters = []): static
     {
-        return $this->withParameters($parameters)->withRawLocation(
-            fn (array $parameters): string => $this->container->make('url')->action($action, $parameters)
-        );
+        $this->destination = function (array $parameters) use ($action): string {
+            return $this->container->make('url')->action($action, $parameters);
+        };
+
+        return $this->withParameters($parameters);
     }
 
     /**
@@ -201,9 +206,11 @@ class EmailLoginRequest extends FormRequest
      */
     public function withRoute(string $name, array $parameters = []): static
     {
-        return $this->withParameters($parameters)->withRawLocation(
-            fn (array $parameters): string => $this->container->make('url')->route($name, $parameters)
-        );
+        $this->destination = function (array $parameters) use ($name): string {
+            return $this->container->make('url')->route($name, $parameters);
+        };
+
+        return $this->withParameters($parameters);
     }
 
     /**
@@ -252,16 +259,18 @@ class EmailLoginRequest extends FormRequest
         string $store = null,
         string $key = null
     ): static {
-        $this->throttle = function () use ($duration, $store, $key): void {
+        // We will replace the execution callback for one that uses the remember.
+        $this->execute = function () use ($duration, $store, $key): bool {
             $key = implode('|', [
                 $this->config->get('email-login.cache.prefix'),
                 $this->config->get('email-login.throttle.prefix'),
-                $this->throttle['key'] ?? $this->fingerprint()
+                $key ?? $this->fingerprint()
             ]);
 
-            $this->container->make('cache')
-                ->store($this->throttle['store'])
-                ->remember($key, $this->throttle['expire'], $this->send(...));
+            // Execute the send method but return "null" if it fails so it doesn't get throttled.
+            return $this->container->make('cache')
+                ->store($store)
+                ->remember($key, $duration, fn (): bool => $this->attempt() || true);
         };
 
         return $this;
@@ -292,9 +301,9 @@ class EmailLoginRequest extends FormRequest
     /**
      * Sends to send the email.
      */
-    public function send(): void
+    public function send(): bool
     {
-        empty($this->throttle) ? $this->attempt() : ($this->throttle)();
+        return ($this->execute)();
     }
 
     /**
@@ -303,32 +312,99 @@ class EmailLoginRequest extends FormRequest
     protected function attempt(): bool
     {
         // If the user has set its own set of credentials, use it.
-        $credentials = $this->retrieveCredentials() ?: $this->validated();
+        $credentials = $this->retrieveCredentials() ?? $this->validated();
 
         /** @var \Illuminate\Contracts\Events\Dispatcher $event */
         $event = $this->container->make('events');
 
+        // Send the Attempting event with the credentials.
         $event->dispatch(new Attempting($this->guard, $credentials, $this->shouldRemember));
 
-        // If we can't find the user, bail out.
+        // If we can't find the user, return false.
         if (!$user = $this->getUserProvider()->retrieveByCredentials($credentials)) {
             $event->dispatch(new Failed($this->guard, null, $credentials));
 
-            throw ValidationException::withMessages(['email' => __('validation.email', ['attribute' => 'email'])]);
+            return false;
         }
 
         $token = $this->getTokenForEmailLoginIntent($user);
 
-        $mail = LoginEmail::make($user, $this->buildUrl($token), $this->config->get('email-login.mail.view'))
-            ->when($connection = $this->config->get('email-login.mail.connection'))->onConnection($connection)
-            ->when($queue = $this->config->get('email-login.mail.queue'))->onQueue($queue);
+        $mailable = with($mailable = $this->buildMailable($user, $token), $this->mailable) ?? $mailable;
+
+        if (method_exists($mailable, 'onConnection') && method_exists($mailable, 'onQueue')) {
+            $mailable
+                ->onConnection($this->config->get('email-login.mail.connection'))
+                ->onQueue($this->config->get('email-login.mail.queue'));
+        }
 
         $this->container->make(MailerFactoryContract::class)
             ->mailer($this->config->get('email-login.mail.mailer'))
-            ->to($user)
-            ->send(with($mail, $this->mailable) ?: $mail);
+            ->send($mailable);
 
         return true;
+    }
+
+    /**
+     * Validate the Request using a set of rules.
+     */
+    public function validate(array $rules, ...$params): array
+    {
+        // We have to re-implement the macro to re-use the validator and validated data.
+        $validator = $this->container->make(ValidationFactory::class)->make($this->all(), $rules, ...$params);
+
+        // @codeCoverageIgnoreStart
+        if ($this->isPrecognitive()) {
+            $validator
+                ->after(Precognition::afterValidationHook($this))
+                ->setRules(
+                    $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
+                );
+        }
+        // @codeCoverageIgnoreEnd
+
+        return tap($validator, $this->setValidator(...))->validate();
+    }
+
+    /**
+     * Get the validated data from the request.
+     *
+     * @param  array|int|string|null  $key
+     * @param  mixed  $default
+     * @return mixed
+     */
+    public function validated($key = null, $default = null)
+    {
+        if (!$this->validator) {
+            $this->validate(static::RULES);
+        }
+
+        return parent::validated($key, $default);
+    }
+
+    /**
+     * Build the default mailable.
+     */
+    protected function buildMailable(Authenticatable $user, string $token): Mailable
+    {
+        if ($user instanceof Model) {
+            $user = $user->withoutRelations();
+        }
+
+        $expiration = is_int($this->expiration)
+            ? now()->addMinutes($this->expiration)
+            : Carbon::parse($this->expiration);
+
+        $mailable = $this->container->make(LoginEmail::class, [
+            'user' => $user,
+            'url' => $this->buildUrl($token),
+            'expiration' => $expiration
+        ]);
+
+        $mailable->to($user);
+
+        $mailable->markdown($this->config->get('email-login.mail.markdown'));
+
+        return $mailable;
     }
 
     /**
@@ -348,19 +424,19 @@ class EmailLoginRequest extends FormRequest
     }
 
     /**
-     * Builds the login email.
+     * Builds the login email url and returns it.
      */
     protected function buildUrl(string $token): string
     {
         // Override any conflicting query parameter when building the url.
         return ($this->destination)(array_merge($this->destinationParameters, [
-            LoginByEmailRequest::INTENT_KEY => $token,
+            LoginByEmailRequest::TOKEN_KEY => $token,
             LoginByEmailRequest::STORE_KEY => $this->guard,
         ]));
     }
 
     /**
-     * Stores the Email Login Intent, so it can later be pulled out at login time.
+     * Stores the Email Login Intent, so it can later be pulled out at login time with the returned token string.
      */
     protected function getTokenForEmailLoginIntent(Authenticatable $user): string
     {
@@ -369,7 +445,7 @@ class EmailLoginRequest extends FormRequest
             $user->getAuthIdentifier(),
             $this->expiration,
             $this->shouldRemember,
-            $this->redirector->intended()->getTargetUrl(),
+            $this->redirector->getIntendedUrl(),
             $this->metadata
         );
     }
@@ -377,17 +453,25 @@ class EmailLoginRequest extends FormRequest
     /**
      * Returns the credentials to use by the developer.
      */
-    protected function retrieveCredentials(): array
+    protected function retrieveCredentials(): ?array
     {
+        if (!$this->credentials) {
+            return null;
+        }
+
         $credentials = [];
 
+        $i = 0;
+
         foreach ($this->credentials as $key => $value) {
-            // Find the key only if the key is an integer.
-            if (is_int($key) && !$value instanceof Closure && null !== $input = $this->input($value)) {
-                $credentials[$value] = $input;
+            // Find the value of the request key only if the key is an array index (integer).
+            if ($i === $key && !$value instanceof Closure && null !== $input = $this->input($value)) {
+                [$key, $value] = [$value, $input];
             }
 
             $credentials[$key] = $value;
+
+            ++$i;
         }
 
         return $credentials;

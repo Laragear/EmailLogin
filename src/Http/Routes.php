@@ -2,9 +2,8 @@
 
 namespace Laragear\EmailLogin\Http;
 
-use Illuminate\Routing\Route as LaravelRoute;
+use Illuminate\Routing\RouteRegistrar;
 use Illuminate\Support\Facades\Route;
-use function app;
 
 class Routes
 {
@@ -12,7 +11,8 @@ class Routes
     public const ROUTE_SHOW = 'auth/email/show';
     public const ROUTE_LOGIN = 'auth/email/login';
     public const ROUTE_CONTROLLER = 'App\Http\Controllers\Auth\EmailLoginController';
-    public const ROUTE_GUEST = '';
+    public const ROUTE_MIDDLEWARE = 'guest';
+
     /**
      * Register the default email login controller actions.
      */
@@ -20,19 +20,19 @@ class Routes
         string $send = self::ROUTE_SEND,
         string $login = self::ROUTE_LOGIN,
         string $controller = self::ROUTE_CONTROLLER,
-        string $guest = self::ROUTE_GUEST,
-    ): LaravelRoute {
-        $route = null;
+        string|array $middleware = self::ROUTE_MIDDLEWARE,
+    ): RouteRegistrar {
+        $route = Route::controller($controller);
 
-        Route::middleware("guest:$guest")
-            ->controller($controller)
-            ->group(static function () use ($send, $login, &$route): void {
-                $route = Route::post($send, 'send')->name('auth.email.send');
+        if ($middleware) {
+            $route->middleware($middleware);
+        }
 
-                Route::get($login, 'show')->middleware('token.validate')->name('auth.email.login');
-                Route::post($login, 'login')->middleware('token.consume');
-            });
+        return $route->group(static function () use ($send, $login, &$route): void {
+            Route::post($send, 'send')->name('auth.email.send');
 
-        return $route;
+            Route::get($login, 'show')->name('auth.email.login');
+            Route::post($login, 'login');
+        });
     }
 }

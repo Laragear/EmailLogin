@@ -4,7 +4,8 @@ namespace Laragear\EmailLogin;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
-use Laragear\TokenAction\Store;
+use Illuminate\Support\Str;
+use Laragear\TokenAction\Builder;
 
 /**
  * @internal
@@ -21,13 +22,18 @@ class EmailLoginServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(static::CONFIG, 'email-login');
-        $this->loadViewsFrom(static::VIEWS, 'email-login');
+        $this->loadViewsFrom(static::VIEWS, 'laragear');
+
+        EmailLoginBroker::$tokenGenerator = static function (): string {
+            return Str::ulid();
+        };
 
         $this->app->bind(EmailLoginBroker::class, static function (Container $app): EmailLoginBroker {
+            /** @var \Illuminate\Contracts\Config\Repository $config */
             $config = $app->make('config');
 
             return new EmailLoginBroker(
-                $app->make(Store::class),
+                $app->make(Builder::class),
                 $config->get('email-login.cache.store'),
                 $config->get('email-login.cache.prefix'),
             );
@@ -43,7 +49,7 @@ class EmailLoginServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->publishes([static::CONFIG => $this->app->configPath('email-login.php')], 'config');
-            $this->publishes([static::VIEWS => $this->app->resourcePath('views/vendor/email-login')], 'views');
+            $this->publishes([static::VIEWS => $this->app->resourcePath('views/vendor/laragear')], 'views');
             $this->publishes([
                 // @phpstan-ignore-next-line
                 static::CONTROLLER => $this->app->path('Http/Controllers/Auth/EmailLoginController.php')], 'controllers'
