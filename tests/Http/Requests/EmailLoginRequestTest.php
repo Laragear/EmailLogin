@@ -362,8 +362,8 @@ class EmailLoginRequestTest extends TestCase
 
         $mail = Mail::fake();
 
-        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30)->send());
-        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30)->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30)->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30)->send());
 
         $mail->assertQueuedTimes(LoginEmail::class, 1);
     }
@@ -382,8 +382,8 @@ class EmailLoginRequestTest extends TestCase
 
         $this->mock(EmailLoginBroker::class)->expects('create')->andReturn('test-token');
 
-        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, 'test-store')->send());
-        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, 'test-store')->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, 'test-store')->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, 'test-store')->send());
 
         $mail->assertQueuedTimes(LoginEmail::class, 1);
     }
@@ -402,8 +402,8 @@ class EmailLoginRequestTest extends TestCase
 
         $this->mock(EmailLoginBroker::class)->expects('create')->andReturn('test-token');
 
-        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, key: 'test-key')->send());
-        static::assertTrue($this->request()->setRouteResolver($route)->throttleBy(30, key: 'test-key')->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, key: 'test-key')->send());
+        static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, key: 'test-key')->send());
         static::assertTrue($store->has('email-login|throttle|test-key'));
 
         $mail->assertQueuedTimes(LoginEmail::class, 1);

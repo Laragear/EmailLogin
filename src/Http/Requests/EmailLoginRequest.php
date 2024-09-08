@@ -254,7 +254,7 @@ class EmailLoginRequest extends FormRequest
      *
      * @return $this
      */
-    public function throttleBy(
+    public function withThrottle(
         DateTimeInterface|DateInterval|string|int $duration,
         string $store = null,
         string $key = null

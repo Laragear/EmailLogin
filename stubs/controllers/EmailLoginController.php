@@ -19,7 +19,7 @@ class EmailLoginController extends Controller
      */
     public function send(EmailLoginRequest $request): RedirectResponse
     {
-        $request->throttleBy(30, config('email-login.throttle.store'), config('email-login.throttle.prefix'))->send();
+        $request->withThrottle(30, config('email-login.throttle.store'), config('email-login.throttle.prefix'))->send();
 
         $request->session()->flash(
             'sent', __('The login email has been sent to :email.', ['email' => $request->email])

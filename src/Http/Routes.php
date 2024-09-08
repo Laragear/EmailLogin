@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Route;
 class Routes
 {
     public const ROUTE_SEND = 'auth/email/send';
-    public const ROUTE_SHOW = 'auth/email/show';
     public const ROUTE_LOGIN = 'auth/email/login';
     public const ROUTE_CONTROLLER = 'App\Http\Controllers\Auth\EmailLoginController';
     public const ROUTE_MIDDLEWARE = 'guest';
