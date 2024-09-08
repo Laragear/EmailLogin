@@ -87,7 +87,7 @@ class LoginByEmailRequest extends FormRequest
     /**
      * Handle a failed validation attempt.
      */
-    protected function failedValidation(Validator $validator): never
+    protected function failedValidation(Validator $validator)
     {
         // Abort if we're showing a view through a `GET` method.
         if ($this->isListing()) {

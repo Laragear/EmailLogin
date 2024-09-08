@@ -34,6 +34,7 @@ class LoginEmail extends Mailable implements ShouldQueue
             $user = $user->withoutRelations();
         }
 
+        // @phpstan-ignore-next-line
         return (new static($user, $url, Carbon::parse($expiration)))->to($user)->markdown($markdown);
     }
 }

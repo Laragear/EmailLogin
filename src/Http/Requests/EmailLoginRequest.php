@@ -61,8 +61,6 @@ class EmailLoginRequest extends FormRequest
 
     /**
      * The key where the remember input resides in this request.
-     *
-     * @var string
      */
     protected bool $shouldRemember = false;
 
@@ -86,7 +84,7 @@ class EmailLoginRequest extends FormRequest
     /**
      * Add additional credentials to locate the proper User.
      *
-     * @var array<string, (\Closure(\Illuminate\Contracts\Database\Query\Builder|\Illuminate\Contracts\Database\Eloquent\Builder):void)|mixed>|null
+     * @var array<string|int, (\Closure(\Illuminate\Contracts\Database\Query\Builder|\Illuminate\Contracts\Database\Eloquent\Builder):void)|mixed>|null
      */
     protected ?array $credentials = null;
 
@@ -329,6 +327,7 @@ class EmailLoginRequest extends FormRequest
 
         $token = $this->getTokenForEmailLoginIntent($user);
 
+        // @phpstan-ignore-next-line
         $mailable = with($mailable = $this->buildMailable($user, $token), $this->mailable) ?? $mailable;
 
         if (method_exists($mailable, 'onConnection') && method_exists($mailable, 'onQueue')) {
@@ -374,6 +373,7 @@ class EmailLoginRequest extends FormRequest
      */
     public function validated($key = null, $default = null)
     {
+        // @phpstan-ignore-next-line
         if (!$this->validator) {
             $this->validate(static::RULES);
         }

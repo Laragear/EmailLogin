@@ -27,7 +27,7 @@ class Routes
             $route->middleware($middleware);
         }
 
-        return $route->group(static function () use ($send, $login, &$route): void {
+        return $route->group(static function () use ($send, $login): void {
             Route::post($send, 'send')->name('auth.email.send');
 
             Route::get($login, 'show')->name('auth.email.login');
