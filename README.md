@@ -2,7 +2,7 @@
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/laragear/email-login.svg)](https://packagist.org/packages/laragear/email-login)
 [![Latest stable test run](https://github.com/Laragear/EmailLogin/workflows/Tests/badge.svg)](https://github.com/Laragear/EmailLogin/actions)
-[![Codecov coverage](https://codecov.io/gh/Laragear/EmailLogin/graph/badge.svg?token=YjJpdKrUCr)](https://codecov.io/gh/Laragear/EmailLogin)
+[![Codecov coverage](https://codecov.io/gh/Laragear/EmailLogin/graph/badge.svg?token=Nfr8cAlFvC)](https://codecov.io/gh/Laragear/EmailLogin)
 [![Maintainability](https://api.codeclimate.com/v1/badges/3ffd5af2566998e5897f/maintainability)](https://codeclimate.com/github/Laragear/EmailLogin/maintainability)
 [![Sonarcloud Status](https://sonarcloud.io/api/project_badges/measure?project=Laragear_EmailLogin&metric=alert_status)](https://sonarcloud.io/dashboard?id=Laragear_EmailLogin)
 [![Laravel Octane Compatibility](https://img.shields.io/badge/Laravel%20Octane-Compatible-success?style=flat&logo=laravel)](https://laravel.com/docs/11.x/octane#introduction)
