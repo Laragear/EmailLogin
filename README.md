@@ -32,7 +32,7 @@ composer require laragear/email-login
 
 ## 1 minute quickstart
 
-Email Login is very simple to install: put the email of the user you want to authenticate in a form, and an email will be sent to him with a single-time link to authenticate.
+Email Login is very simple to after installing: put the email of the user you want to authenticate in a form, and an email will be sent to him with a single-time link to authenticate.
 
 First, install the configuration file and the base the controllers using the `email-login:install` Artisan command.
 
