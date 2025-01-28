@@ -49,7 +49,7 @@ class EmailLoginBroker
         bool $remember = false,
         ?string $intended = null,
         array $metadata = [],
-        Closure|string $token = null
+        Closure|string|null $token = null
     ): string {
         if ($id instanceof Authenticatable) {
             $id = $id->getAuthIdentifier();
