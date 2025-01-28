@@ -254,8 +254,8 @@ class EmailLoginRequest extends FormRequest
      */
     public function withThrottle(
         DateTimeInterface|DateInterval|string|int $duration,
-        string $store = null,
-        string $key = null
+        ?string $store = null,
+        ?string $key = null
     ): static {
         // We will replace the execution callback for one that uses the remember.
         $this->execute = function () use ($duration, $store, $key): bool {
