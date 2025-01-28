@@ -97,7 +97,7 @@ class EmailLoginRequest extends FormRequest
     /**
      * A callback where the email sent is executed
      *
-     * @var \Closure():bool)
+     * @var \Closure():bool
      */
     protected Closure $execute;
 
