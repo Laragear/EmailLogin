@@ -287,6 +287,22 @@ class EmailLoginRequestTest extends TestCase
         static::assertTrue($request->withPath('foo', ['bar' => 'baz'])->send());
     }
 
+    public function test_with_query(): void
+    {
+        $request = $this->request();
+
+        $url = $this->mock(UrlGenerator::class);
+        $url->expects('query')->withArgs(static function (string $path, array $parameters): bool {
+            static::assertSame('foo', $path);
+            static::assertSame('baz',$parameters['bar']);
+
+            return true;
+        })->andReturn('foobarbaz');
+        $this->instance('url', $url);
+
+        static::assertTrue($request->withQuery('foo', ['bar' => 'baz'])->send());
+    }
+
     public function test_with_action(): void
     {
         $request = $this->request();

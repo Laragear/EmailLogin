@@ -238,7 +238,7 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 
 ### Email URL link
 
-You may change the URL where the Email Login will point to through the [configuration](#route-name--view), or at runtime using the `withPath()`, `withAction()`, and `withRoute()` methods. You may set also parameters using an array as a second argument, if you need to.
+You may change the URL where the Email Login will point to through the [configuration](#route-name--view), or at runtime using the `withPath()`, `withQuery()`, `withAction()`, and `withRoute()` methods. You may set also parameters using an array as a second argument, if you need to.
 
 ```php
 use Illuminate\Support\Facades\Route;
@@ -249,7 +249,11 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 });
 ```
 
-You may also only append query parameters to the default URL set in the configuration using `withParameters()` method.
+You may also only append extra parameters to the default URL set in the configuration using `withParameters()` method.
+
+> [!NOTE]
+>
+> The `withPath()` doesn't support query parameters (by Laravel convention), extra parameters will be added as path like `foo/bar/baz`. To set a query, use the other methods.
 
 ```php
 use Illuminate\Support\Facades\Route;
