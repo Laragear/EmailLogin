@@ -367,9 +367,9 @@ class EmailLoginRequest extends FormRequest
 
         // @codeCoverageIgnoreStart
         if ($this->isPrecognitive()) {
-            $validator
+            $validator // @phpstan-ignore-line
                 ->after(Precognition::afterValidationHook($this))
-                ->setRules( // @phpstan-ignore-line
+                ->setRules(
                     $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders()) // @phpstan-ignore-line
                 );
         }
