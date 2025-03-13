@@ -307,7 +307,7 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 });
 ```
 
-The throttling uses the same cache used to store the email login intent, and the request fingerprint (IP) by default. You may change the cache store to use as second name, and even the key to use as throttler as third argument.
+The throttling uses the same cache used to store the email login intent, and the request fingerprint (IP) by default. You may change the cache store with the second argument, and even the key to use as throttler identifier as third argument.
 
 ```php
 use Illuminate\Support\Facades\Route;
@@ -495,6 +495,23 @@ public function register()
     };
 }
 ```
+
+### Custom Email Broker Store
+
+You may define a custom cache store to store the token at runtime, using the `withStore()` method. The method should receive the name of the cache store available in your application.
+
+```php
+use Illuminate\Support\Facades\Route;
+use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
+
+Route::post('/auth/email/send', function (EmailLoginRequest $email) {
+    return $email->withStore('valkey-persistent')->sendAndReturnBack();
+});
+```
+
+> [!NOTE]
+> 
+> The cache store is always set in the login link, which will instruct the Email Login Broker where to look for the token.
 
 ## Advanced Configuration
 
