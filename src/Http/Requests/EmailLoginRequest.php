@@ -70,6 +70,13 @@ class EmailLoginRequest extends FormRequest
     protected DateTimeInterface|int|string $expiration;
 
     /**
+     * The store to use by the Email Login Broker.
+     *
+     * @var string|null
+     */
+    protected ?string $store = null;
+
+    /**
      * The guard to use to log in the user through the email.
      *
      * @var string
@@ -119,6 +126,18 @@ class EmailLoginRequest extends FormRequest
         $this->withRoute($this->config->get('email-login.route.name'));
 
         $this->execute = $this->attempt(...);
+    }
+
+    /**
+     * Sets the store to use for saving the Login Request token.
+     *
+     * @return $this
+     */
+    public function withStore(?string $store): static
+    {
+        $this->store = $store;
+
+        return $this;
     }
 
     /**
@@ -408,6 +427,16 @@ class EmailLoginRequest extends FormRequest
     }
 
     /**
+     * Returns the Email Broker store to use.
+     */
+    protected function getEmailBrokerStore(): string
+    {
+        return $this->store
+            ?? $this->config->get('email-login.cache.store')
+            ?? $this->config->get('cache.default');
+    }
+
+    /**
      * Returns the User Provider used by the Authentication Guard.
      */
     protected function getUserProvider(): UserProviderContract
@@ -431,7 +460,7 @@ class EmailLoginRequest extends FormRequest
         // Override any conflicting query parameter when building the url.
         return ($this->destination)(array_merge($this->destinationParameters, [
             LoginByEmailRequest::TOKEN_KEY => $token,
-            LoginByEmailRequest::STORE_KEY => $this->guard,
+            LoginByEmailRequest::STORE_KEY => $this->getEmailBrokerStore(),
         ]));
     }
 
@@ -440,14 +469,16 @@ class EmailLoginRequest extends FormRequest
      */
     protected function getTokenForEmailLoginIntent(Authenticatable $user): string
     {
-        return $this->container->make(EmailLoginBroker::class)->create(
-            $this->guard,
-            $user->getAuthIdentifier(),
-            $this->expiration,
-            $this->shouldRemember,
-            $this->redirector->getIntendedUrl(),
-            $this->metadata
-        );
+        return $this->container->make(EmailLoginBroker::class)
+            ->store($this->getEmailBrokerStore())
+            ->create(
+                $this->guard,
+                $user->getAuthIdentifier(),
+                $this->expiration,
+                $this->shouldRemember,
+                $this->redirector->getIntendedUrl(),
+                $this->metadata
+            );
     }
 
     /**

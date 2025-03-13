@@ -22,6 +22,7 @@ use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
 use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
 use Laragear\EmailLogin\Http\Routes;
 use Laragear\EmailLogin\Mails\LoginEmail;
+use Mockery\MockInterface;
 use Tests\TestCase;
 use function method_exists;
 use function now;
@@ -117,11 +118,14 @@ class EmailLoginRequestTest extends TestCase
     {
         $request = $this->request(['email' => 'foo@bar.com', 'remember' => 'on']);
 
-        $this->mock(EmailLoginBroker::class)->expects('create')->withArgs(
-            function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
-                return $shouldRemember === true;
-            }
-        )->andReturn('test-token');
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->withArgs(
+                function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
+                    return $shouldRemember === true;
+                }
+            )->andReturn('test-token');
+        });
 
         static::assertTrue($request->send());
     }
@@ -211,11 +215,14 @@ class EmailLoginRequestTest extends TestCase
 
         $request->withRemember('something');
 
-        $this->mock(EmailLoginBroker::class)->expects('create')->withArgs(
-            function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
-                return $shouldRemember === true;
-            }
-        )->andReturn('test-token');
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->withArgs(
+                function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
+                    return $shouldRemember === true;
+                }
+            )->andReturn('test-token');
+        });
 
         static::assertTrue($request->send());
     }
@@ -226,11 +233,14 @@ class EmailLoginRequestTest extends TestCase
 
         $request->withRemember(true);
 
-        $this->mock(EmailLoginBroker::class)->expects('create')->withArgs(
-            function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
-                return $shouldRemember === true;
-            }
-        )->andReturn('test-token');
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->withArgs(
+                function (string $guard, mixed $id, mixed $expiration, bool $shouldRemember): bool {
+                    return $shouldRemember === true;
+                }
+            )->andReturn('test-token');
+        });
 
         static::assertTrue($request->send());
     }
@@ -380,7 +390,10 @@ class EmailLoginRequestTest extends TestCase
         $cache->expects('store')->with('test-store')->andReturn($store)->twice();
         $this->instance('cache', $cache);
 
-        $this->mock(EmailLoginBroker::class)->expects('create')->andReturn('test-token');
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->once()->andReturn('test-token');
+        });
 
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, 'test-store')->send());
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, 'test-store')->send());
@@ -400,7 +413,10 @@ class EmailLoginRequestTest extends TestCase
         $cache->expects('store')->with(null)->andReturn($store)->twice();
         $this->instance('cache', $cache);
 
-        $this->mock(EmailLoginBroker::class)->expects('create')->andReturn('test-token');
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->once()->andReturn('test-token');
+        });
 
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, key: 'test-key')->send());
         static::assertTrue($this->request()->setRouteResolver($route)->withThrottle(30, key: 'test-key')->send());
@@ -435,7 +451,7 @@ class EmailLoginRequestTest extends TestCase
             parse_str(parse_url($mailable->url, PHP_URL_QUERY), $query);
 
             static::assertTrue(Str::isUlid($query['token']));
-            static::assertSame('web', $query['store']);
+            static::assertSame('array', $query['store']);
 
             static::assertInstanceOf(User::class, $mailable->user);
             static::assertSame([['name' => 'foo', 'address' => 'foo@bar.com']], $mailable->to);

@@ -6,6 +6,7 @@ use Illuminate\Foundation\Auth\User;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\EmailLoginIntent;
 use Laragear\EmailLogin\Http\Routes;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 class EmailLoginControllerTest extends TestCase
@@ -28,7 +29,10 @@ class EmailLoginControllerTest extends TestCase
 
     public function test_send_mail(): void
     {
-        $this->mock(EmailLoginBroker::class)->expects('create')->once();
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->once();
+        });
 
         $this->post('/auth/email/send', [
             'email' => 'foo@bar.com',
