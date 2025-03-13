@@ -184,6 +184,20 @@ class EmailLoginRequest extends FormRequest
     }
 
     /**
+     * Sets the path where the user should log in.
+     *
+     * @return $this
+     */
+    public function withQuery(string $path, array $extra = []): static
+    {
+        $this->destination = function (array $parameters) use ($path): string {
+            return $this->container->make('url')->query($path, $parameters);
+        };
+
+        return $this->withParameters($extra);
+    }
+
+    /**
      * Sets the action where the user should log in.
      *
      * @return $this
