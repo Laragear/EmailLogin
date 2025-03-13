@@ -251,6 +251,10 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 
 You may also only append extra parameters to the default URL set in the configuration using `withParameters()` method.
 
+> [!NOTE]
+>
+> The `withPath()` doesn't support query parameters (by Laravel convention), extra parameters will be added as path like `foo/bar/baz`. To set a query, use the other methods.
+
 ```php
 use Illuminate\Support\Facades\Route;
 use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
