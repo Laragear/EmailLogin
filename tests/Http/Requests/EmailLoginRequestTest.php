@@ -10,10 +10,11 @@ use Illuminate\Contracts\Cache\Factory as CacheFactoryContract;
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Contracts\Mail\Factory as MailerFactoryContract;
 use Illuminate\Contracts\Mail\Mailer;
-use Illuminate\Contracts\Routing\UrlGenerator;
+use Illuminate\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Mail\Mailable;
 use Illuminate\Routing\Route;
+use Illuminate\Routing\UrlGenerator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -107,7 +108,7 @@ class EmailLoginRequestTest extends TestCase
 
         $request = $this->request();
 
-        $url = $this->mock(UrlGenerator::class);
+        $url = $this->mock(UrlGeneratorContract::class);
         $url->expects('route')->withArgs(fn (string $route): bool => 'test-route' === $route)->andReturn('test-route');
         $this->instance('url', $url);
 
@@ -275,7 +276,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $request = $this->request();
 
-        $url = $this->mock(UrlGenerator::class);
+        $url = $this->mock(UrlGeneratorContract::class);
         $url->expects('to')->withArgs(static function (string $path, array $parameters): bool {
             static::assertSame('foo', $path);
             static::assertSame('baz',$parameters['bar']);
@@ -289,6 +290,37 @@ class EmailLoginRequestTest extends TestCase
 
     public function test_with_query(): void
     {
+        if (method_exists(UrlGeneratorContract::class, 'query')) {
+            $this->markTestSkipped("The URL Generator Contract has a query method.");
+        }
+
+        $request = $this->request();
+
+        $url = $this->mock(UrlGeneratorContract::class, function (MockInterface $mock) {
+            $mock->expects('to')->withArgs(static function (string $path): bool {
+                $params = Str::of($path)
+                    ->after('?')
+                    ->explode('&')
+                    ->mapWithKeys(fn($param) => [Str::before($param, '=') => Str::after($param, '=')]);
+
+                static::assertSame('baz', $params['bar']);
+                static::assertTrue(Str::isUlid($params['token']));
+                static::assertSame('array', $params['store']);
+
+                return true;
+            })->andReturn('foobarbaz');
+        });
+
+        $this->instance('url', $url);
+
+        static::assertTrue($request->withQuery('foo', ['bar' => 'baz'])->send());
+    }
+
+    public function test_with_native_query(): void
+    {
+        if (!method_exists(UrlGeneratorContract::class, 'query')) {
+            $this->markTestSkipped("The URL Generator Contract doesn't have a [query] method.");
+        }
         $request = $this->request();
 
         $url = $this->mock(UrlGenerator::class);
@@ -307,7 +339,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $request = $this->request();
 
-        $url = $this->mock(UrlGenerator::class);
+        $url = $this->mock(UrlGeneratorContract::class);
         $url->expects('action')->withArgs(static function (string $path, array $parameters): bool {
             static::assertSame('foo', $path);
             static::assertSame('baz',$parameters['bar']);
@@ -323,7 +355,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $request = $this->request();
 
-        $url = $this->mock(UrlGenerator::class);
+        $url = $this->mock(UrlGeneratorContract::class);
         $url->expects('route')->withArgs(static function (string $path, array $parameters): bool {
             static::assertSame('foo', $path);
             static::assertSame('baz',$parameters['bar']);
@@ -339,7 +371,7 @@ class EmailLoginRequestTest extends TestCase
     {
         $request = $this->request();
 
-        $url = $this->mock(UrlGenerator::class);
+        $url = $this->mock(UrlGeneratorContract::class);
         $url->expects('route')->withArgs(static function (string $path, array $parameters): bool {
             static::assertSame('auth.email.login', $path);
             static::assertSame('baz',$parameters['bar']);
