@@ -3,7 +3,7 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/laragear/email-login.svg)](https://packagist.org/packages/laragear/email-login)
 [![Latest stable test run](https://github.com/Laragear/EmailLogin/workflows/Tests/badge.svg)](https://github.com/Laragear/EmailLogin/actions)
 [![Codecov coverage](https://codecov.io/gh/Laragear/EmailLogin/graph/badge.svg?token=Nfr8cAlFvC)](https://codecov.io/gh/Laragear/EmailLogin)
-[![Maintainability](https://api.codeclimate.com/v1/badges/3ffd5af2566998e5897f/maintainability)](https://codeclimate.com/github/Laragear/EmailLogin/maintainability)
+[![Maintainability](https://qlty.sh/badges/8d9d7479-aa6e-40ce-a23c-b794bc9b98f8/maintainability.svg)](https://qlty.sh/gh/Laragear/projects/EmailLogin)
 [![Sonarcloud Status](https://sonarcloud.io/api/project_badges/measure?project=Laragear_EmailLogin&metric=alert_status)](https://sonarcloud.io/dashboard?id=Laragear_EmailLogin)
 [![Laravel Octane Compatibility](https://img.shields.io/badge/Laravel%20Octane-Compatible-success?style=flat&logo=laravel)](https://laravel.com/docs/11.x/octane#introduction)
 
@@ -21,7 +21,12 @@ Authenticate users through their email in 1 minute.
 
 [![](.github/assets/support.png)](https://github.com/sponsors/DarkGhostHunter)
 
-Your support allows me to keep this package free, up-to-date and maintainable. Alternatively, you can **[spread the word!](http://twitter.com/share?text=I%20am%20using%20this%20cool%20PHP%20package&url=https://github.com%2FLaragear%2FEmailLogin&hashtags=PHP,Laravel)**
+Your support allows me to keep this package free, up-to-date and maintainable. Alternatively, you can **spread the word on social media**
+
+## Requirements
+
+* Laravel 11 or later.
+
 ## Installation
 
 Then call Composer to retrieve the package.
@@ -82,7 +87,7 @@ This package will handle the whole logic for you, but you can always go full man
 
 ## Sending the login email
 
-To implement the login email manually, you need to capture the user credentials from the form submission. The `EmailLoginRequest` does most of the heavy lifting for you. 
+To implement the login email manually, you need to capture the email from the form submission. The `Laragear\EmailLogin\Http\Requests\EmailLoginRequest` does most of the heavy lifting for you. 
 
 If you're using the defaults that come with Laravel, the request automatically validates the email. You only need to return the `sendAndBack()` method to redirect the user back to the form. 
 
@@ -95,7 +100,7 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 });
 ```
 
-You can also use `send()` and `back()` separately if you need to do something before sending the email, and use the `validate()` method if you want to expand on the email validation rules.
+You can also use `send()` and `back()` separately if you need to do something before sending the email, and use the `validate()` method if you want to expand on the validation procedure.
 
 ```php
 use Illuminate\Support\Facades\Route;
@@ -249,11 +254,11 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 });
 ```
 
-You may also only append extra parameters to the default URL set in the configuration using `withParameters()` method.
-
 > [!NOTE]
 >
 > The `withPath()` doesn't support query parameters (by Laravel convention), extra parameters will be added as path like `foo/bar/baz`. To set a query, use the other methods.
+
+You may also only append extra parameters to the default URL set in the configuration using `withParameters()` method.
 
 ```php
 use Illuminate\Support\Facades\Route;
@@ -641,7 +646,7 @@ There should be no problems using this package with Laravel Octane.
 
 ## Security
 
-If you discover any security related issues, please email darkghosthunter@gmail.com instead of using the issue tracker.
+If you discover any security related issues, please [use the online form](https://github.com/Laragear/EmailLogin/security).
 
 ### Blocking authentication after the email is sent.
 
@@ -682,4 +687,4 @@ class MyLoginRequest extends LoginByEmailRequest
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
 
-Laravel is a Trademark of Taylor Otwell. Copyright © 2011-2024 Laravel LLC.
+Laravel is a Trademark of Taylor Otwell. Copyright © 2011-2025 Laravel LLC.

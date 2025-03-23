@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Foundation\Precognition;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\Mails\LoginEmail;
@@ -207,13 +208,20 @@ class EmailLoginRequest extends FormRequest
      *
      * @return $this
      */
-    public function withQuery(string $path, array $extra = []): static
+    public function withQuery(string $path, array $query = []): static
     {
         $this->destination = function (array $parameters) use ($path): string {
-            return $this->container->make('url')->query($path, $parameters);
+            /** @var \Illuminate\Contracts\Routing\UrlGenerator $url */
+            $url = $this->container->make('url');
+
+            // @codeCoverageIgnoreStart
+            return method_exists($url, 'query')  // @phpstan-ignore-line
+                ? $url->query($path, $parameters)
+                : $url->to($path . ($parameters ? '?' . Arr::query($parameters) : ''));
+            // // @codeCoverageIgnoreEnd
         };
 
-        return $this->withParameters($extra);
+        return $this->withParameters($query);
     }
 
     /**
