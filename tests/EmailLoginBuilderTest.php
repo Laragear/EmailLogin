@@ -470,6 +470,16 @@ class EmailLoginBuilderTest extends TestCase
         static::assertSame(['foo' => 'bar'], $intent->metadata);
     }
 
+    public function test_uses_custom_store_for_broker(): void
+    {
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->with('test-store')->andReturnSelf();
+            $mock->expects('create')->once()->andReturn('test-token');
+        });
+
+        static::assertTrue($this->builder()->withCredentials('email')->withStore('test-store')->send());
+    }
+
     public function test_creates_default_mailable(): void
     {
         $mail = Mail::fake();
