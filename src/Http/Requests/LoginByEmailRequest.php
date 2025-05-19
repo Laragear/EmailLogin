@@ -90,11 +90,11 @@ class LoginByEmailRequest extends FormRequest
     protected function failedValidation(Validator $validator): never
     {
         // Abort if we're showing a view through a `GET` method.
-        if ($this->isListing()) {
-            throw new HttpException(419, __('Page Expired'));
+        if (!$this->isListing()) {
+            parent::failedValidation($validator);
         }
 
-        parent::failedValidation($validator);
+        throw new HttpException(419, __('Page Expired'));
     }
 
     /**
