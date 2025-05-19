@@ -13,17 +13,17 @@ class LoginMailTest extends TestCase
     {
         $this->freezeSecond();
 
-        $mailable = LoginEmail::make(
-            User::make()->forceFill(['name' => 'john doe', 'email' => 'test@email.com']),
-            'foo/bar',
-            'laragear::email-login.mail.login',
-            now()->addMinutes(60)
-        );
+        $mailable = new LoginEmail();
+        $mailable->user = User::make()->forceFill(['name' => 'john doe', 'email' => 'test@email.com']);
+        $mailable->to($mailable->user);
+        $mailable->expiration = now()->addMinutes(19);
+        $mailable->markdown('laragear::email-login.mail.login');
+        $mailable->url = 'foo/bar';
 
         $mailable->assertHasTo('test@email.com')
             ->assertSeeInHtml('foo/bar')
             ->assertSeeInText('john doe')
             ->assertSeeInText('Login to Laravel')
-            ->assertSeeInText('This link will last for 1 hour');
+            ->assertSeeInText('This link will last for 19 minutes');
     }
 }

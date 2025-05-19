@@ -9,7 +9,7 @@ return [
     |
     | The default guard to retrieve the user and send a login email. When not
     | set, the application default will be used. On fresh installations, the
-    | default guard is "web", which uses the DB Eloquent to retrieve users.
+    | default guard is "web" which uses the Eloquent ORM to retrieve users.
     |
     */
 

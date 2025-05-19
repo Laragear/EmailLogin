@@ -8,14 +8,17 @@ use JsonSerializable;
 use Stringable;
 use function json_encode;
 
-class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable, Stringable
+readonly class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable, Stringable
 {
+    /**
+     * Create a new Email Login Intent instance.
+     */
     public function __construct(
-        readonly public string $guard,
-        readonly public mixed $id,
-        readonly public bool $remember,
-        readonly public ?string $intended,
-        readonly public array $metadata
+        public string $guard,
+        public mixed $id,
+        public bool $remember,
+        public ?string $intended,
+        public array $metadata
     ) {
         //
     }
@@ -42,8 +45,10 @@ class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable, Stringa
 
     /**
      * @inheritDoc
+     *
+     * @return array{guard: string, id: mixed, remember: bool, intended: string|null, metadata: array<string, mixed>}
      */
-    public function toArray()
+    public function toArray(): array
     {
         return [
             'guard' => $this->guard,
@@ -64,8 +69,10 @@ class EmailLoginIntent implements JsonSerializable, Arrayable, Jsonable, Stringa
 
     /**
      * @inheritDoc
+     *
+     * @return array{guard: string, id: mixed, remember: bool, intended: string|null, metadata: array<string, mixed>}
      */
-    public function jsonSerialize(): mixed
+    public function jsonSerialize(): array
     {
         return $this->toArray();
     }

@@ -2,11 +2,9 @@
 
 namespace Laragear\EmailLogin\Mails;
 
-use DateTimeInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Carbon;
@@ -16,27 +14,17 @@ class LoginEmail extends Mailable implements ShouldQueue
     use Queueable, SerializesModels;
 
     /**
-     * Create a new mailable instance.
+     * The user that should be able to authenticate.
      */
-    public function __construct(public Authenticatable $user, public string $url, public Carbon $expiration)
-    {
-        //
-    }
+    public Authenticatable $user;
 
     /**
-     * Create a new Login Mail instance.
+     * The URL where the Mail points to the authentication.
      */
-    public static function make(
-        Authenticatable $user,
-        string $url,
-        string $markdown,
-        DateTimeInterface $expiration,
-    ): static {
-        if ($user instanceof Model) {
-            $user = $user->withoutRelations();
-        }
+    public string $url;
 
-        // @phpstan-ignore-next-line
-        return (new static($user, $url, Carbon::parse($expiration)))->to($user)->markdown($markdown);
-    }
+    /**
+     * The moment the Login Email stops being valid.
+     */
+    public Carbon $expiration;
 }

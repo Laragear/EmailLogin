@@ -6,7 +6,6 @@ use Illuminate\Contracts\Console\Kernel;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\EmailLoginServiceProvider;
 use Laragear\MetaTesting\InteractsWithServiceProvider;
-use PHPUnit\Framework\Attributes\Test;
 
 class ServiceProviderTest extends TestCase
 {

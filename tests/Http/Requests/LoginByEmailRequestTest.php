@@ -3,9 +3,7 @@
 namespace Tests\Http\Requests;
 
 use Illuminate\Contracts\Auth\Factory;
-use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\StatefulGuard;
-use Illuminate\Contracts\Session\Session;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Response;
 use Illuminate\Session\Middleware\StartSession;

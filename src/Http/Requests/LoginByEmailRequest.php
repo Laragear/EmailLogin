@@ -3,10 +3,8 @@
 namespace Laragear\EmailLogin\Http\Requests;
 
 use Closure;
-use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Auth\StatefulGuard;
 use Illuminate\Contracts\Validation\Validator;
-use Illuminate\Contracts\View\View;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\RedirectResponse;
 use InvalidArgumentException;
@@ -60,13 +58,15 @@ class LoginByEmailRequest extends FormRequest
      */
     protected function validateToken(string $attribute, mixed $value, Closure $fail): void
     {
+        $broker = $this->container->make(EmailLoginBroker::class)->store($this->input(static::STORE_KEY));
+
         // If the store key doesn't exist, it will throw an "InvalidArgumentException".
         // We will capture that exception, and instead of throwing something, we will
         // just set the intent as not found. This also obfuscates the cache stores.
         try {
             $this->intent = $this->isListing()
-                ? $this->broker()->get($value)
-                : $this->broker()->pull($value);
+                ? $broker->get($value)
+                : $broker->pull($value);
         } catch (InvalidArgumentException) {
             $this->intent = null;
         }
@@ -87,7 +87,7 @@ class LoginByEmailRequest extends FormRequest
     /**
      * Handle a failed validation attempt.
      */
-    protected function failedValidation(Validator $validator)
+    protected function failedValidation(Validator $validator): never
     {
         // Abort if we're showing a view through a `GET` method.
         if ($this->isListing()) {
@@ -95,16 +95,6 @@ class LoginByEmailRequest extends FormRequest
         }
 
         parent::failedValidation($validator);
-    }
-
-    /**
-     * Return the Email Login Broker.
-     */
-    protected function broker(): EmailLoginBroker
-    {
-        return $this->broker ??= $this->container->make(EmailLoginBroker::class)->store(
-            $this->input(static::STORE_KEY)
-        );
     }
 
     /**
@@ -136,7 +126,7 @@ class LoginByEmailRequest extends FormRequest
     }
 
     /**
-     * Return a metadata value from its key, or a default value if it doesn't exist.
+     * Return a metadata value from its key or a default value if it doesn't exist.
      */
     public function metadata(string $key, mixed $default = null): mixed
     {

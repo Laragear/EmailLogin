@@ -66,7 +66,7 @@ class EmailLoginBroker
     }
 
     /**
-     * Check if there is an email login intent in the cache store.
+     * Check if there is a Mail Login Intent in the cache store.
      */
     public function get(string $token): ?EmailLoginIntent
     {
@@ -83,7 +83,7 @@ class EmailLoginBroker
     }
 
     /**
-     * Check if there is not an email login intent in the cache store.
+     * Check if there is not a Mail Login Intent in the cache store.
      */
     public function missing(string $token): bool
     {
