@@ -10,7 +10,6 @@ use Illuminate\Contracts\Cache\Factory as CacheFactoryContract;
 use Illuminate\Contracts\Database\Query\Builder;
 use Illuminate\Contracts\Mail\Factory as MailerFactoryContract;
 use Illuminate\Contracts\Mail\Mailer;
-use Illuminate\Contracts\Routing\UrlGenerator as UrlGeneratorContract;
 use Illuminate\Foundation\Auth\User;
 use Illuminate\Http\Request;
 use Illuminate\Mail\Mailable;
@@ -267,7 +266,7 @@ class EmailLoginBuilderTest extends TestCase
 
     public function test_with_query(): void
     {
-        if (method_exists(UrlGeneratorContract::class, 'query')) {
+        if (method_exists(UrlGenerator::class, 'query')) {
             $this->markTestSkipped('The URL Generator Contract has a query method.');
         }
 
