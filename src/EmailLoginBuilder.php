@@ -181,17 +181,28 @@ class EmailLoginBuilder
     }
 
     /**
+     * Adds a callback that resolves the login destination as a string.
+     *
+     * @param  \Closure(array, \Illuminate\Contracts\Auth\Authenticatable):string  $destination
+     * @return $this
+     */
+    public function withDestination(Closure $destination, array $parameters = []): static
+    {
+        $this->destination = $destination;
+
+        return $this->withParameters($parameters);
+    }
+
+    /**
      * Sets the path where the user should log in.
      *
      * @return $this
      */
     public function withPath(string $path, array $extra = []): static
     {
-        $this->destination = function (array $parameters) use ($path): string {
+        return $this->withDestination(function (array $parameters) use ($path): string {
             return $this->container->make('url')->to($path, $parameters);
-        };
-
-        return $this->withParameters($extra);
+        }, $extra);
     }
 
     /**
@@ -201,7 +212,7 @@ class EmailLoginBuilder
      */
     public function withQuery(string $path, array $query = []): static
     {
-        $this->destination = function (array $parameters) use ($path): string {
+        return $this->withDestination(function (array $parameters) use ($path): string {
             /** @var \Illuminate\Contracts\Routing\UrlGenerator $url */
             $url = $this->container->make('url');
 
@@ -210,9 +221,7 @@ class EmailLoginBuilder
                 ? $url->query($path, $parameters)
                 : $url->to($path . ($parameters ? '?' . Arr::query($parameters) : ''));
             // // @codeCoverageIgnoreEnd
-        };
-
-        return $this->withParameters($query);
+        }, $query);
     }
 
     /**
@@ -222,11 +231,9 @@ class EmailLoginBuilder
      */
     public function withAction(string|array $action, array $parameters = []): static
     {
-        $this->destination = function (array $parameters) use ($action): string {
+        return $this->withDestination(function (array $parameters) use ($action): string {
             return $this->container->make('url')->action($action, $parameters);
-        };
-
-        return $this->withParameters($parameters);
+        }, $parameters);
     }
 
     /**
@@ -236,11 +243,9 @@ class EmailLoginBuilder
      */
     public function withRoute(string $name, array $parameters = []): static
     {
-        $this->destination = function (array $parameters) use ($name): string {
+        return $this->withDestination(function (array $parameters) use ($name): string {
             return $this->container->make('url')->route($name, $parameters);
-        };
-
-        return $this->withParameters($parameters);
+        }, $parameters);
     }
 
     /**
@@ -300,7 +305,7 @@ class EmailLoginBuilder
             // Use the "remember" method to attempt. By returning "null", we will be able to try again.
             return (bool) $this->container->make('cache')
                 ->store($store)
-                ->remember($key, $duration, function (): ?bool {
+                ->remember($key, $duration, function (): true|null {
                     return $this->attempt() ?: null;
                 });
         };
@@ -392,7 +397,7 @@ class EmailLoginBuilder
 
         $mailable = $this->container->make(LoginEmail::class);
         $mailable->user = $user;
-        $mailable->url = $this->buildUrl($token);
+        $mailable->url = $this->buildUrl($token, $user);
         $mailable->expiration = $expiration;
 
         $mailable->to($user);
@@ -430,13 +435,13 @@ class EmailLoginBuilder
     /**
      * Builds the login email url and returns it.
      */
-    protected function buildUrl(string $token): string
+    protected function buildUrl(string $token, Authenticatable $user): string
     {
         // Override any conflicting query parameter when building the url.
         return ($this->destination)(array_merge($this->destinationParameters, [
             LoginByEmailRequest::TOKEN_KEY => $token,
             LoginByEmailRequest::STORE_KEY => $this->getEmailBrokerStore(),
-        ]));
+        ]), $user);
     }
 
     /**

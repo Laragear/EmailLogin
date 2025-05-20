@@ -276,6 +276,21 @@ Route::post('/auth/email/send', function (EmailLoginRequest $email) {
 >
 > The route **must** exist. This route should show a form to login, **not** login the user immediately. See [Login in from an email](#login-in-from-an-email).
 
+For a more fine-tuned destination, the `withDestination()` method is available. It requires a callback that receives the URL parameters that should be included and the user found, and should return a string as the URL destination. The callback will be only executed if the email is sent.
+
+This is great if you need to use [`Uri` helper](https://laravel.com/docs/12.x/helpers#uri), or change the destination based on the user instance.
+
+```php
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;use Illuminate\Support\Str;use Illuminate\Support\Uri;use Laragear\EmailLogin\Http\Requests\EmailLoginRequest;
+
+Route::post('/auth/email/send', function (EmailLoginRequest $email) {
+    return $email
+        ->withDestination(fn ($parameters, $user) => Uri::of('auth.app.com/login')->withQuery($parameters))
+        ->sendAndBack();
+});
+```
+
 ### Customizing the Mailable
 
 The most basic approach to use your own [Mailable](https://laravel.com/docs/11.x/mail#generating-mailables) class is to set it through the `withMailable()` method, either as a class name (instanced by the Container) or object instance.

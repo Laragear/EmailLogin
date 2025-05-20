@@ -4,6 +4,7 @@ namespace Tests;
 
 use Illuminate\Auth\Events\Attempting;
 use Illuminate\Auth\Events\Failed;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Factory;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Contracts\Cache\Factory as CacheFactoryContract;
@@ -322,6 +323,27 @@ class EmailLoginBuilderTest extends TestCase
         $this->instance('url', $url);
 
         static::assertTrue($this->builder()->withCredentials('email')->withAction('foo', ['bar' => 'baz'])->send());
+    }
+
+    public function test_with_destination_closure(): void
+    {
+        $ulid = '01JVP0EKKGG5ZPD0JRE1JCJJB0';
+
+        Str::createUlidsUsing(fn () => $ulid);
+
+        $this->instance(LoginEmail::class, $email = new LoginEmail());
+
+        $result = $this->builder()->withCredentials('email')
+            ->withDestination(static function (array $parameters, Authenticatable $user) use ($ulid): string {
+                static::assertSame(['foo' => 'bar', 'token' => $ulid, 'store' => 'array'], $parameters);
+                static::assertSame('foo@bar.com', $user->email);
+
+                return 'test-destination';
+            }, ['foo' => 'bar'])
+            ->send();
+
+        static::assertTrue($result);
+        static::assertSame('test-destination', $email->url);
     }
 
     public function test_with_route(): void
