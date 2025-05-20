@@ -425,7 +425,7 @@ class EmailLoginBuilderTest extends TestCase
 
         $this->app->make('request')->setRouteResolver($route);
 
-        static::assertTrue($builder->withCredentials('email')->withThrottle(30, key: 'test-key')->send());
+        static::assertFalse($builder->withCredentials('invalid')->withThrottle(30, key: 'test-key')->send());
         static::assertTrue($builder->withCredentials('email')->withThrottle(30, key: 'test-key')->send());
         static::assertTrue($store->has('email-login|throttle|test-key'));
 

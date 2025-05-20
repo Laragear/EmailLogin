@@ -298,7 +298,7 @@ class EmailLoginBuilder
             ]);
 
             // Use the "remember" method to attempt. By returning "null", we will be able to try again.
-            return $this->container->make('cache')
+            return (bool) $this->container->make('cache')
                 ->store($store)
                 ->remember($key, $duration, function (): ?bool {
                     return $this->attempt() ?: null;
