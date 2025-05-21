@@ -19,7 +19,6 @@ use Illuminate\Routing\UrlGenerator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Uri;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\EmailLoginBuilder;
 use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
@@ -580,7 +579,7 @@ class EmailLoginBuilderTest extends TestCase
         static::assertCount(1, $mail->queued(LoginEmail::class));
 
         $mail->queued(LoginEmail::class, static function (LoginEmail $mailable) use ($obfuscate): bool {
-            static::assertSame($obfuscate, Uri::of($mailable->url)->query()->get('store'));
+            static::assertStringContainsString("store=$obfuscate", $mailable->url);
 
             return true;
         });
