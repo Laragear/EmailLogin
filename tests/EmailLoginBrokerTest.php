@@ -103,6 +103,24 @@ class EmailLoginBrokerTest extends TestCase
         $this->app->make(EmailLoginBroker::class)->store('test_store')->create('guard', '1', 30);
     }
 
+    public function test_uses_mapped_cache_store(): void
+    {
+        $this->app->make('config')->set('email-login.obfuscate.mapped-store', 'test_store');
+
+        $this->tokenBuilder->expects('store')->with('test_store')->andReturnSelf();
+        $this->tokenBuilder->expects('as')->withArgs(function (string $token): bool {
+            return Str::startsWith($token, 'email-login|');
+        })->andReturnSelf();
+        $this->tokenBuilder->expects('with')->with(Mockery::type(EmailLoginIntent::class))->andReturnSelf();
+        $this->tokenBuilder->expects('until')->with(30)->andReturn(
+            new Token($this->mock(Store::class), new CarbonImmutable('now'), 'str')
+        );
+
+        $this->app->forgetInstance(EmailLoginBroker::class);
+
+        $this->app->make(EmailLoginBroker::class)->store('mapped-store')->create('guard', '1', 30);
+    }
+
     public function test_creates_with_remember(): void
     {
         $this->tokenBuilder->expects('store')->andReturnSelf();

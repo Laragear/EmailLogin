@@ -411,9 +411,11 @@ class EmailLoginBuilder
      */
     protected function getEmailBrokerStore(): string
     {
-        return $this->store
+        $store = $this->store
             ?? $this->config->get('email-login.cache.store')
             ?? $this->config->get('cache.default');
+
+        return $this->container->make('config')->get("email-login.obfuscate.$store", $store);
     }
 
     /**

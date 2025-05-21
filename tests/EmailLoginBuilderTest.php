@@ -19,6 +19,7 @@ use Illuminate\Routing\UrlGenerator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Uri;
 use Laragear\EmailLogin\EmailLoginBroker;
 use Laragear\EmailLogin\EmailLoginBuilder;
 use Laragear\EmailLogin\Http\Requests\LoginByEmailRequest;
@@ -556,6 +557,30 @@ class EmailLoginBuilderTest extends TestCase
             static::assertSame('web', $event->guard);
             static::assertNull($event->user);
             static::assertSame('invalid@bar.com', $event->credentials['email']);
+
+            return true;
+        });
+    }
+
+    public function test_obfuscates_store(): void
+    {
+        $this->app->make('config')->set('email-login.obfuscate.array', $obfuscate = Str::random(8));
+
+        $mail = Mail::fake();
+
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->once()->andReturn('test-token');
+        });
+
+        $builder = $this->builder();
+
+        static::assertTrue($builder->withCredentials('email')->send());
+
+        static::assertCount(1, $mail->queued(LoginEmail::class));
+
+        $mail->queued(LoginEmail::class, static function (LoginEmail $mailable) use ($obfuscate): bool {
+            static::assertSame($obfuscate, Uri::of($mailable->url)->query()->get('store'));
 
             return true;
         });

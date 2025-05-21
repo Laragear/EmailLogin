@@ -576,6 +576,7 @@ return [
         'queue' => null,
         'view' => 'laragear::email-login.mail.login',
     ],
+    'obfuscate' => [],
 ];
 ```
 
@@ -654,6 +655,24 @@ return [
 This specifies which mail driver to use to send the login email, and the queue connection and name that will receive it. When `null`, it will fall back to the application default, which is usually `smtp`.
 
 This also sets the default view to use to create the email, which [uses Markdown](https://laravel.com/docs/11.x/mail#markdown-mailables).
+
+### Store obfuscation
+
+```php
+return [
+    'obfuscate' => [],
+];
+```
+
+If you wish to hide with software stack is your application running in the URL, you may map the store name to a random string. For example, you may set the `redis` store to a string like `this-is-not-redis`.
+
+```php
+return [
+    'obfuscate' => [
+        'this-is-not-redis' => 'redis'
+    ],
+]
+```
 
 ## Laravel Octane Compatibility
 

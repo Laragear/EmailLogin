@@ -93,4 +93,20 @@ return [
         'queue' => null,
         'markdown' => 'laragear::email-login.mail.login',
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Store name obfuscation
+    |--------------------------------------------------------------------------
+    |
+    | To avoid leaking the software stack your application is running, you may
+    | obfuscate the store name with a random string. The associative array is
+    | used with the mapped name as key and the store it should use as value.
+    |
+    */
+
+    'obfuscate' => [
+        // 'im-not-using-redis' => 'redis',
+        // 'im-not-using-database' => 'database',
+    ],
 ];
