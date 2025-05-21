@@ -68,7 +68,7 @@ class EmailLoginBuilder
     /**
      * The destination closure that returns where the email should point to.
      *
-     * @var \Closure(array $parameters):string
+     * @var \Closure(array<string, string>, \Illuminate\Contracts\Auth\Authenticatable):string
      */
     protected Closure $destination;
 
@@ -183,7 +183,7 @@ class EmailLoginBuilder
     /**
      * Adds a callback that resolves the login destination as a string.
      *
-     * @param  \Closure(array, \Illuminate\Contracts\Auth\Authenticatable):string  $destination
+     * @param  \Closure(array<string, string>, \Illuminate\Contracts\Auth\Authenticatable):string  $destination
      * @return $this
      */
     public function withDestination(Closure $destination, array $parameters = []): static
@@ -411,9 +411,11 @@ class EmailLoginBuilder
      */
     protected function getEmailBrokerStore(): string
     {
-        return $this->store
+        $store = $this->store
             ?? $this->config->get('email-login.cache.store')
             ?? $this->config->get('cache.default');
+
+        return $this->container->make('config')->get("email-login.obfuscate.$store", $store);
     }
 
     /**

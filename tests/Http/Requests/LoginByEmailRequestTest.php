@@ -33,7 +33,7 @@ class LoginByEmailRequestTest extends TestCase
         Routes::register();
     }
 
-    protected function request(string $method, array $params = null): LoginByEmailRequest
+    protected function request(string $method, ?array $params = null): LoginByEmailRequest
     {
         $params ??= [
             'token' => static::TOKEN,

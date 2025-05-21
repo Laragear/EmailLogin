@@ -560,6 +560,30 @@ class EmailLoginBuilderTest extends TestCase
             return true;
         });
     }
+
+    public function test_obfuscates_store(): void
+    {
+        $this->app->make('config')->set('email-login.obfuscate.array', $obfuscate = Str::random(8));
+
+        $mail = Mail::fake();
+
+        $this->mock(EmailLoginBroker::class, function (MockInterface $mock) {
+            $mock->expects('store')->andReturnSelf();
+            $mock->expects('create')->once()->andReturn('test-token');
+        });
+
+        $builder = $this->builder();
+
+        static::assertTrue($builder->withCredentials('email')->send());
+
+        static::assertCount(1, $mail->queued(LoginEmail::class));
+
+        $mail->queued(LoginEmail::class, static function (LoginEmail $mailable) use ($obfuscate): bool {
+            static::assertStringContainsString("store=$obfuscate", $mailable->url);
+
+            return true;
+        });
+    }
 }
 
 class TestMailable extends Mailable

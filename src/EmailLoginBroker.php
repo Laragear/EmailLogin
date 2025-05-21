@@ -23,8 +23,15 @@ class EmailLoginBroker
 
     /**
      * Create a new Email Login Broker instance.
+     *
+     * @param  array<string, string>  $storeMap
      */
-    public function __construct(protected Builder $tokenBuilder, protected ?string $store, protected string $prefix)
+    public function __construct(
+        protected Builder $tokenBuilder,
+        protected ?string $store,
+        protected string $prefix,
+        protected array $storeMap,
+    )
     {
         //
     }
@@ -34,7 +41,7 @@ class EmailLoginBroker
      */
     public function store(?string $store): static
     {
-        $this->store = $store;
+        $this->store = $this->storeMap[$store] ?? $store;
 
         return $this;
     }

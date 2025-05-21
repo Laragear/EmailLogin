@@ -36,6 +36,7 @@ class EmailLoginServiceProvider extends ServiceProvider
                 $app->make(Builder::class),
                 $config->get('email-login.cache.store'),
                 $config->get('email-login.cache.prefix'),
+                $config->get('email-login.obfuscate'),
             );
         });
     }

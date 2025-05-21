@@ -58,7 +58,7 @@ class LoginByEmailRequest extends FormRequest
      */
     protected function validateToken(string $attribute, mixed $value, Closure $fail): void
     {
-        $broker = $this->container->make(EmailLoginBroker::class)->store($this->input(static::STORE_KEY));
+        $broker = $this->broker($this->input(static::STORE_KEY));
 
         // If the store key doesn't exist, it will throw an "InvalidArgumentException".
         // We will capture that exception, and instead of throwing something, we will
@@ -74,6 +74,17 @@ class LoginByEmailRequest extends FormRequest
         if (!$this->intent) {
             $fail(__('The :attribute is invalid or has expired.', ['attribute' => $attribute]));
         }
+    }
+
+    /**
+     * Return the Email Login Broker with its proper store selected.
+     */
+    protected function broker(?string $store): EmailLoginBroker
+    {
+        // This will basically check if the store name is mapped in the config.
+        return $this->container
+            ->make(EmailLoginBroker::class)
+            ->store($this->container->make('config')->get("email-login.obfuscate.$store", $store));
     }
 
     /**
