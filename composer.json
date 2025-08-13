@@ -33,7 +33,7 @@
         "laragear/token-action": "2.*"
     },
     "require-dev": {
-        "filament/filament": "^3.3",
+        "filament/filament": "^3.3 || ^4.0",
         "laragear/meta-testing": "3.*",
         "orchestra/testbench": "9.*|10.*"
     },
