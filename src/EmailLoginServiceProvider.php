@@ -12,9 +12,10 @@ use Laragear\TokenAction\Builder;
  */
 class EmailLoginServiceProvider extends ServiceProvider
 {
-    public const CONFIG = __DIR__.'/../config/email-login.php';
-    public const VIEWS = __DIR__.'/../resources/views';
-    public const CONTROLLER = __DIR__.'/../stubs/controllers/EmailLoginController.php';
+    public const string CONFIG = __DIR__.'/../config/email-login.php';
+    public const string VIEWS = __DIR__.'/../resources/views';
+    public const string CONTROLLER = __DIR__.'/../stubs/controllers/EmailLoginController.php';
+    public const string LANG = __DIR__.'/../lang';
 
     /**
      * Register the service provider.
@@ -23,6 +24,7 @@ class EmailLoginServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(static::CONFIG, 'email-login');
         $this->loadViewsFrom(static::VIEWS, 'laragear');
+        $this->loadTranslationsFrom(static::LANG, 'laragear');
 
         EmailLoginBroker::$tokenGenerator = static function (): string {
             return Str::ulid();
@@ -50,6 +52,7 @@ class EmailLoginServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->publishes([static::CONFIG => $this->app->configPath('email-login.php')], 'config');
             $this->publishes([static::VIEWS => $this->app->resourcePath('views/vendor/laragear')], 'views');
+            $this->publishes([static::LANG => $this->app->langPath('vendor/email-login')], 'translations');
             $this->publishes([
                 // @phpstan-ignore-next-line
                 static::CONTROLLER => $this->app->path('Http/Controllers/Auth/EmailLoginController.php')], 'controllers'

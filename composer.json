@@ -24,18 +24,18 @@
         "issues": "https://github.com/Laragear/EmailLogin/issues"
     },
     "require": {
-        "php": "^8.2",
-        "illuminate/support": "11.*|12.*",
-        "illuminate/config": "11.*|12.*",
-        "illuminate/http": "11.*|12.*",
-        "illuminate/auth": "11.*|12.*",
-        "illuminate/mail": "11.*|12.*",
-        "laragear/token-action": "2.*"
+        "php": "^8.3",
+        "illuminate/support": "12.*|13.*",
+        "illuminate/config": "12.*|13.*",
+        "illuminate/http": "12.*|13.*",
+        "illuminate/auth": "12.*|13.*",
+        "illuminate/mail": "12.*|13.*",
+        "laragear/token-action": "3.*"
     },
     "require-dev": {
-        "filament/filament": "^3.3",
-        "laragear/meta-testing": "3.*",
-        "orchestra/testbench": "9.*|10.*"
+        "filament/filament": "5.*",
+        "laragear/meta-testing": "4.*",
+        "orchestra/testbench": "10.*|11.*"
     },
     "autoload": {
         "psr-4": {

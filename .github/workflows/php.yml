@@ -50,16 +50,20 @@ jobs:
     strategy:
       matrix:
         php-version:
-          - 8.2
           - 8.3
           - 8.4
+          - 8.5
         laravel-constraint:
-          - 11.*
           - 12.*
+          - 13.*
         dependencies:
           - lowest
           - highest
-
+        include-filament: [ true ]
+        exclude:
+          - laravel-constraint: "13.*"
+            php-version: 8.3
+            include-filament: true
     steps:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -70,6 +74,11 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # Remove this once Filament PHP v5 gets Laravel 13 compatibility.
+      - name: Remove Filament for Laravel 13 compatibility
+        if: matrix.laravel-constraint == '13.*'
+        run: composer remove "filament/filament" --dev --no-update
 
       - name: Install dependencies
         uses: ramsey/composer-install@v3

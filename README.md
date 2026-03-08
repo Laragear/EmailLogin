@@ -5,7 +5,7 @@
 [![Codecov coverage](https://codecov.io/gh/Laragear/EmailLogin/graph/badge.svg?token=Nfr8cAlFvC)](https://codecov.io/gh/Laragear/EmailLogin)
 [![Maintainability](https://qlty.sh/badges/8d9d7479-aa6e-40ce-a23c-b794bc9b98f8/maintainability.svg)](https://qlty.sh/gh/Laragear/projects/EmailLogin)
 [![Sonarcloud Status](https://sonarcloud.io/api/project_badges/measure?project=Laragear_EmailLogin&metric=alert_status)](https://sonarcloud.io/dashboard?id=Laragear_EmailLogin)
-[![Laravel Octane Compatibility](https://img.shields.io/badge/Laravel%20Octane-Compatible-success?style=flat&logo=laravel)](https://laravel.com/docs/11.x/octane#introduction)
+[![Laravel Octane Compatibility](https://img.shields.io/badge/Laravel%20Octane-Compatible-success?style=flat&logo=laravel)](https://laravel.com/docs/13.x/octane#introduction)
 
 Authenticate users through their email in 1 minute.
 
@@ -25,7 +25,8 @@ Your support allows me to keep this package free, up-to-date and maintainable. A
 
 ## Requirements
 
-* Laravel 11 or later.
+* PHP 8.3 or later
+* Laravel 12 or later
 
 ## Installation
 
@@ -640,12 +641,41 @@ This specifies which mail driver to use to send the login email, and the queue c
 
 This also sets the default view to use to create the email, which [uses Markdown](https://laravel.com/docs/11.x/mail#markdown-mailables).
 
+## Filament Login by Email
+
+If you want for users to log in through their Email, you can use the `Laragear\EmailLogin\Filament\EmailLogin` page. It extends the default Filament Login page for the panel, but instead of using the usual user-password combination, it validates the email, sends the mail and receives the login attempt.
+
+```php
+use Filament\Panel;
+use Laragear\EmailLogin\Filament\EmailLogin;
+
+public function panel(Panel $panel): Panel
+{
+    return $panel
+        // ...
+        ->login(EmailLogin::class);
+}
+```
+
+If the class does not adjust to your panel, you may create a class extending this Email Login, and override any of the included methods. From these methods, the most useful to override are:
+
+- `useTokenStore()`: Sets the token store to use.
+- `getEmailFormComponent()`: Returns the Input that will hold the Email.
+- `notifyEmailSent()`: Notifies the user the email has been sent.
+- `getCredentialsFromFormData()`: Returns the Credentials used to find the user.
+- `handleInvalidToken()`: Handles what to do if the token is invalid.
+- `notifyInvalidToken()`: Notifies the user that token is invalid.
+
+> [!IMPORTANT]
+> 
+> The Login relies heavily on the `email` input. If you wish, you may alter the form to find the user by either username or email, or any other type of input.
+
 ## Laravel Octane Compatibility
 
 * There are no singletons using a stale application instance.
 * There are no singletons using a stale config instance.
 * There are no singletons using a stale request instance.
-* Two static property accessible to write are
+* Two static properties accessible to write are
     * `LoginByMailRequest::$destroyOnRegeneration`
     * `EmailLoginBroker::$tokenGenerator`
 
@@ -694,4 +724,4 @@ class MyLoginRequest extends LoginByEmailRequest
 
 The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
 
-Laravel is a Trademark of Taylor Otwell. Copyright © 2011-2025 Laravel LLC.
+Laravel is a Trademark of Taylor Otwell. Copyright © 2011–2026 Laravel LLC.

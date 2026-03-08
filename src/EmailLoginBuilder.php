@@ -393,7 +393,7 @@ class EmailLoginBuilder
         $mailable = $this->container->make(LoginEmail::class);
         $mailable->user = $user;
         $mailable->url = $this->buildUrl($token);
-        $mailable->expiration = $expiration;
+        $mailable->expiration = $expiration; // @phpstan-ignore-line
 
         $mailable->to($user);
         $mailable->markdown($this->config->get('email-login.mail.markdown'));

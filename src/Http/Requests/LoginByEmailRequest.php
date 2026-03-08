@@ -20,17 +20,17 @@ class LoginByEmailRequest extends FormRequest
     /**
      * The name of the request query key where the login token should be.
      */
-    public const TOKEN_KEY = 'token';
+    public const string TOKEN_KEY = 'token';
 
     /**
      * The name of the request query key where the guard name should be.
      */
-    public const STORE_KEY = 'store';
+    public const string STORE_KEY = 'store';
 
     /**
      * If the session should be destroyed on regeneration
      */
-    public static bool $destroyOnRegeneration = false;
+    public static bool $destroyOnRegeneration = true;
 
     /**
      * The Token Action of this Login Email request.
